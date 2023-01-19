@@ -1,0 +1,40 @@
+{
+    "name": "AZDS_KIOSK_Auditing",
+    "properties": {
+        "linkedServiceName": {
+            "referenceName": "AZLS_BlobStorage_KIOSK_Auditing",
+            "type": "LinkedServiceReference",
+            "parameters": {
+                "KIOSK_endpoint": {
+                    "value": "@dataset().KIOSK_endpoint",
+                    "type": "Expression"
+                }
+            }
+        },
+        "parameters": {
+            "KIOSK_Container": {
+                "type": "string"
+            },
+            "KIOSK_endpoint": {
+                "type": "string"
+            }
+        },
+        "annotations": [],
+        "type": "DelimitedText",
+        "typeProperties": {
+            "location": {
+                "type": "AzureBlobStorageLocation",
+                "fileName": "KIOSK_Auditing.csv",
+                "container": {
+                    "value": "@dataset().KIOSK_Container",
+                    "type": "Expression"
+                }
+            },
+            "columnDelimiter": ",",
+            "escapeChar": "\\",
+            "firstRowAsHeader": true,
+            "quoteChar": "\""
+        },
+        "schema": []
+    }
+}

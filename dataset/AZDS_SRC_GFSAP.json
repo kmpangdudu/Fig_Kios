@@ -1,0 +1,20 @@
+{
+    "name": "AZDS_SRC_GFSAP",
+    "properties": {
+        "description": "Directly queries from SAP HANA      \nwithout using OPENQUERY",
+        "linkedServiceName": {
+            "referenceName": "AZLS_HANA_GFSAP",
+            "type": "LinkedServiceReference"
+        },
+        "folder": {
+            "name": "Extended_Reporting/Source"
+        },
+        "annotations": [],
+        "type": "SapHanaTable",
+        "schema": [],
+        "typeProperties": {
+            "schema": "_SYS_BIC",
+            "table": "FIG.REPORTING.BI/CV_PL_RECON_RC"
+        }
+    }
+}

@@ -1,0 +1,53 @@
+{
+    "name": "AZDS_SRC_KIOSK",
+    "properties": {
+        "description": "app0094sqldev;   \nRoot directory : global-audit\nNO GZIP",
+        "linkedServiceName": {
+            "referenceName": "AZLS_BlobStorage_KIOSK",
+            "type": "LinkedServiceReference",
+            "parameters": {
+                "endpoint": {
+                    "value": "@dataset().endpoint",
+                    "type": "Expression"
+                }
+            }
+        },
+        "parameters": {
+            "container": {
+                "type": "string"
+            },
+            "tar_filename": {
+                "type": "string"
+            },
+            "storageAccountNmae": {
+                "type": "string"
+            },
+            "endpoint": {
+                "type": "string"
+            }
+        },
+        "folder": {
+            "name": "Extended_Reporting/Sink"
+        },
+        "annotations": [],
+        "type": "DelimitedText",
+        "typeProperties": {
+            "location": {
+                "type": "AzureBlobStorageLocation",
+                "fileName": {
+                    "value": "@dataset().tar_filename",
+                    "type": "Expression"
+                },
+                "container": {
+                    "value": "@dataset().container",
+                    "type": "Expression"
+                }
+            },
+            "columnDelimiter": ",",
+            "escapeChar": "\\",
+            "firstRowAsHeader": true,
+            "quoteChar": "\""
+        },
+        "schema": []
+    }
+}

@@ -1,0 +1,55 @@
+{
+    "name": "AZDS_SNK_GA",
+    "properties": {
+        "description": "app2145sqldev\nContain: FigData (Dynamic)\ndirectory: YYYYMMDD\nFileName: KIOSK-GF-GA-FIG_Extract\nCompress: GZip\n",
+        "linkedServiceName": {
+            "referenceName": "AZLS_BlobStorage_GA",
+            "type": "LinkedServiceReference",
+            "parameters": {
+                "ServiceEndpoint": {
+                    "value": "@dataset().endpoint",
+                    "type": "Expression"
+                }
+            }
+        },
+        "parameters": {
+            "container": {
+                "type": "string"
+            },
+            "tar_filename": {
+                "type": "string"
+            },
+            "endpoint": {
+                "type": "string"
+            }
+        },
+        "folder": {
+            "name": "Extended_Reporting/Sink"
+        },
+        "annotations": [],
+        "type": "DelimitedText",
+        "typeProperties": {
+            "location": {
+                "type": "AzureBlobStorageLocation",
+                "fileName": {
+                    "value": "@dataset().tar_filename",
+                    "type": "Expression"
+                },
+                "container": {
+                    "value": "@dataset().container",
+                    "type": "Expression"
+                }
+            },
+            "columnDelimiter": ",",
+            "compressionCodec": "gzip",
+            "escapeChar": "\\",
+            "firstRowAsHeader": true,
+            "nullValue": {
+                "value": "@concat('')",
+                "type": "Expression"
+            },
+            "quoteChar": "\""
+        },
+        "schema": []
+    }
+}

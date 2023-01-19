@@ -1,0 +1,126 @@
+{
+    "name": "AZDS_SNK_KIOSK_FileStru",
+    "properties": {
+        "description": "app0094sqldev;   \nRoot directory : global-audit\nNO GZIP",
+        "linkedServiceName": {
+            "referenceName": "AZLS_BlobStorage_KIOSK",
+            "type": "LinkedServiceReference",
+            "parameters": {
+                "endpoint": {
+                    "value": "@dataset().endpoint",
+                    "type": "Expression"
+                }
+            }
+        },
+        "parameters": {
+            "container": {
+                "type": "string"
+            },
+            "tar_file": {
+                "type": "string"
+            },
+            "storageAccountName": {
+                "type": "string"
+            },
+            "endpoint": {
+                "type": "string"
+            }
+        },
+        "folder": {
+            "name": "Extended_Reporting/Sink"
+        },
+        "annotations": [],
+        "type": "DelimitedText",
+        "typeProperties": {
+            "location": {
+                "type": "AzureBlobStorageLocation",
+                "fileName": {
+                    "value": "@dataset().tar_file",
+                    "type": "Expression"
+                },
+                "container": {
+                    "value": "@dataset().container",
+                    "type": "Expression"
+                }
+            },
+            "columnDelimiter": ",",
+            "escapeChar": "\\",
+            "firstRowAsHeader": true,
+            "quoteChar": "\""
+        },
+        "schema": [
+            {
+                "name": "Business_ID",
+                "type": "String"
+            },
+            {
+                "name": "Business_Description",
+                "type": "String"
+            },
+            {
+                "name": "Sub_Function_ID",
+                "type": "String"
+            },
+            {
+                "name": "Sub_Function_Description",
+                "type": "String"
+            },
+            {
+                "name": "Service_Line_ID",
+                "type": "String"
+            },
+            {
+                "name": "Service_Line_Description",
+                "type": "String"
+            },
+            {
+                "name": "Geography_ID",
+                "type": "String"
+            },
+            {
+                "name": "Geography_Description",
+                "type": "String"
+            },
+            {
+                "name": "Member_Firm",
+                "type": "String"
+            },
+            {
+                "name": "Member_Firm_Description",
+                "type": "String"
+            },
+            {
+                "name": "Value_Type",
+                "type": "String"
+            },
+            {
+                "name": "Value_Type_Desc",
+                "type": "String"
+            },
+            {
+                "name": "Fiscal_Year",
+                "type": "String"
+            },
+            {
+                "name": "Fiscal_Period",
+                "type": "String"
+            },
+            {
+                "name": "Fiscal_Period_DESC",
+                "type": "String"
+            },
+            {
+                "name": "Levels",
+                "type": "String"
+            },
+            {
+                "name": "Hours",
+                "type": "String"
+            },
+            {
+                "name": "Headcounts",
+                "type": "String"
+            }
+        ]
+    }
+}
