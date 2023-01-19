@@ -1,0 +1,6 @@
+selected resource name:		AZPL_GF_GA_FIG_Extract_L2parent
+selected resource type:		pipeline
+factory name:			app0094-dfactory-dev-s2
+factory location:		westeurope
+subscription id:		fc3c85e8-5bd5-4e1e-a87c-6b26897c008e
+time of download (UTC):		Fri, 19 Aug 2022 18:26:45 GMT

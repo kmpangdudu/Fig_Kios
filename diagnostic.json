@@ -1,0 +1,22 @@
+{
+    "now": "2022-08-19T18:26:45.359Z",
+    "perfNow": 9279733.599999905,
+    "diagnosticCorrelation": "db5601c7-3051-40df-a2a5-ad9e71dc7794",
+    "source": "DownloadSupportFiles",
+    "environment": {
+        "productName": "adf",
+        "buildVersion": "1.0.081222.6",
+        "environmentType": 3,
+        "resourceName": "app0094-dfactory-dev-s2",
+        "resourceRegion": "westeurope",
+        "resourceGroup": "azrg-euw-ena-app0094-dev-002",
+        "subscriptionId": "fc3c85e8-5bd5-4e1e-a87c-6b26897c008e",
+        "sessionId": "3iDi4",
+        "operationId": "1gFZp",
+        "gitType": "VSTS"
+    },
+    "additionalInfo": {
+        "selectedResource": "AZPL_GF_GA_FIG_Extract_L2parent",
+        "selectedResourceType": "pipeline"
+    }
+}
