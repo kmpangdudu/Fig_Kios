@@ -1,0 +1,56 @@
+{
+    "name": "AZTR_Global_Audit",
+    "properties": {
+        "description": "Main entrance schedule to run 12:00AM UTC 5",
+        "annotations": [],
+        "runtimeState": "Started",
+        "pipelines": [
+            {
+                "pipelineReference": {
+                    "referenceName": "AZPL_GF_GA_FIG_Extract_L2parent",
+                    "type": "PipelineReference"
+                },
+                "parameters": {
+                    "GA_Container": "figdata",
+                    "retention_days": 365,
+                    "receiver": "ajohnchuan@deloitte.ca",
+                    "cc": "ajbrar@deloitte.ca",
+                    "bcc": "erjchen@deloitte.ca",
+                    "KIOSK_archivesDirectory": "archive",
+                    "KIOSK_Filename": "KIOSK-GF-GA-FIG_Extract",
+                    "KIOSK_Container": "global-audit",
+                    "pull_Status": "KIOSK-GF-GA-P_VALUE.txt",
+                    "KIOSK_endpoint": "https://app0094sqldev.blob.core.windows.net",
+                    "KIOSK_storageAccount0094": "app0094sqldev",
+                    "GA_EMA_Endpoint": "https://app2145sqldev.blob.core.windows.net/",
+                    "GA_AME_Endpoint": "https://app2145sqldev.blob.core.windows.net/",
+                    "GA_APA_Endpoint": "https://app2145sqldev.blob.core.windows.net/",
+                    "GA_filename": "FIGExtract",
+                    "GA_Endpoint_EMA_Enabled": "y",
+                    "GA_Endpoint_AME_Enabled": "n",
+                    "GA_Endpoint_APA_Enabled": "n",
+                    "automation_endpoint": "https://ffe89918-a835-4f0c-9a68-6043d8b27017.webhook.we.azure-automation.net/webhooks?token=%2b9KMc34uibgt4JB5ENLxRW22aPqvJBzz9XdY1xuhlYA%3d",
+                    "Skip_Check_for_Publish_Load_ID": "y",
+                    "Disable_Data_Validation": "n"
+                }
+            }
+        ],
+        "type": "ScheduleTrigger",
+        "typeProperties": {
+            "recurrence": {
+                "frequency": "Day",
+                "interval": 1,
+                "startTime": "2022-07-13T01:15:00",
+                "timeZone": "Eastern Standard Time",
+                "schedule": {
+                    "minutes": [
+                        0
+                    ],
+                    "hours": [
+                        20
+                    ]
+                }
+            }
+        }
+    }
+}
