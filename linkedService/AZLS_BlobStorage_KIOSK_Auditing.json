@@ -1,0 +1,18 @@
+{
+    "name": "AZLS_BlobStorage_KIOSK_Auditing",
+    "properties": {
+        "description": "KIOSK Automatic Cross Auditing",
+        "parameters": {
+            "KIOSK_endpoint": {
+                "type": "string",
+                "defaultValue": "https://app0094sqldev.blob.core.windows.net"
+            }
+        },
+        "annotations": [],
+        "type": "AzureBlobStorage",
+        "typeProperties": {
+            "serviceEndpoint": "@{linkedService().KIOSK_endpoint}",
+            "accountKind": "StorageV2"
+        }
+    }
+}

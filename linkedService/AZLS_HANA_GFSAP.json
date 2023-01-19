@@ -1,0 +1,23 @@
+{
+    "name": "AZLS_HANA_GFSAP",
+    "properties": {
+        "description": "Global Finance SAP HANA instance",
+        "annotations": [],
+        "type": "SapHana",
+        "typeProperties": {
+            "connectionString": {
+                "type": "AzureKeyVaultSecret",
+                "store": {
+                    "referenceName": "AZLS_KeyVault",
+                    "type": "LinkedServiceReference"
+                },
+                "secretName": "KVGFSAPCN"
+            }
+        },
+        "connectVia": {
+            "referenceName": "SelfHostedIntegrationRunTime",
+            "type": "IntegrationRuntimeReference"
+        }
+    },
+    "type": "Microsoft.DataFactory/factories/linkedservices"
+}

@@ -1,0 +1,21 @@
+{
+    "name": "AZLS_BlobStorage_GA",
+    "properties": {
+        "description": "Global Audit blob storage account",
+        "parameters": {
+            "ServiceEndpoint": {
+                "type": "string"
+            }
+        },
+        "annotations": [],
+        "type": "AzureBlobStorage",
+        "typeProperties": {
+            "serviceEndpoint": "@{linkedService().ServiceEndpoint}",
+            "accountKind": "StorageV2"
+        },
+        "connectVia": {
+            "referenceName": "SelfHostedIntegrationRunTime",
+            "type": "IntegrationRuntimeReference"
+        }
+    }
+}

@@ -1,0 +1,21 @@
+{
+    "name": "AZLS_BlobStorage_KIOSK",
+    "properties": {
+        "description": "Linked service for KIOSK blob storage container",
+        "parameters": {
+            "endpoint": {
+                "type": "string"
+            }
+        },
+        "annotations": [],
+        "type": "AzureBlobStorage",
+        "typeProperties": {
+            "serviceEndpoint": "@{linkedService().endpoint}",
+            "accountKind": "BlobStorage"
+        },
+        "connectVia": {
+            "referenceName": "SelfHostedIntegrationRunTime",
+            "type": "IntegrationRuntimeReference"
+        }
+    }
+}
