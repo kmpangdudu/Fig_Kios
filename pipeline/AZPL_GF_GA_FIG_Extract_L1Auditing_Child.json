@@ -1,0 +1,915 @@
+{
+    "name": "AZPL_GF_GA_FIG_Extract_L1Auditing_Child",
+    "properties": {
+        "activities": [
+            {
+                "name": "DF_KIOSK_Auditing",
+                "type": "ExecuteDataFlow",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "1.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "dataflow": {
+                        "referenceName": "DF_KIOSK_auditing",
+                        "type": "DataFlowReference",
+                        "parameters": {
+                            "KIOSK_Container": {
+                                "value": "'@{pipeline().parameters.KIOSK_Container}'",
+                                "type": "Expression"
+                            },
+                            "KIOSK_endpoint": {
+                                "value": "'@{pipeline().parameters.KIOSK_endpoint}'",
+                                "type": "Expression"
+                            }
+                        },
+                        "datasetParameters": {
+                            "KioskExtractFile": {
+                                "KIOSK_endpoint": {
+                                    "value": "@pipeline().parameters.KIOSK_endpoint",
+                                    "type": "Expression"
+                                },
+                                "KIOSK_Container": {
+                                    "value": "@pipeline().parameters.KIOSK_Container",
+                                    "type": "Expression"
+                                },
+                                "KIOSK_Filename": {
+                                    "value": "@pipeline().parameters.KIOSK_Filename",
+                                    "type": "Expression"
+                                }
+                            },
+                            "AuditingSNKBlob": {
+                                "KIOSK_Container": {
+                                    "value": "@pipeline().parameters.KIOSK_Container",
+                                    "type": "Expression"
+                                },
+                                "KIOSK_endpoint": {
+                                    "value": "@pipeline().parameters.KIOSK_endpoint",
+                                    "type": "Expression"
+                                }
+                            }
+                        }
+                    },
+                    "compute": {
+                        "coreCount": 8,
+                        "computeType": "General"
+                    },
+                    "traceLevel": "Fine"
+                }
+            },
+            {
+                "name": "Lookup KIOSK Auditing values",
+                "type": "Lookup",
+                "dependsOn": [
+                    {
+                        "activity": "DF_KIOSK_Auditing",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "source": {
+                        "type": "DelimitedTextSource",
+                        "storeSettings": {
+                            "type": "AzureBlobStorageReadSettings",
+                            "recursive": true,
+                            "enablePartitionDiscovery": false
+                        },
+                        "formatSettings": {
+                            "type": "DelimitedTextReadSettings"
+                        }
+                    },
+                    "dataset": {
+                        "referenceName": "AZDS_KIOSK_Auditing",
+                        "type": "DatasetReference",
+                        "parameters": {
+                            "KIOSK_Container": {
+                                "value": "@pipeline().parameters.KIOSK_Container",
+                                "type": "Expression"
+                            },
+                            "KIOSK_endpoint": {
+                                "value": "@pipeline().parameters.KIOSK_endpoint",
+                                "type": "Expression"
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                "name": "Lookup_HANA_TC1_Total_Hours",
+                "description": "sum of HOURS in HANA",
+                "type": "Lookup",
+                "dependsOn": [
+                    {
+                        "activity": "Set variable_Hours",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "source": {
+                        "type": "SapHanaSource",
+                        "query": "----------------------\n-- TC1 - Total HOURS\n----------------------\nwith HANA AS(\nSELECT \n\t\t\t FUNCTION,\n\t\t\t FUNCTION_DESC,\n\t\t\t SRVC_LN_GRP,\n\t\t\t SRV_LN_GRP_ID_DESC,\n\t\t\t SERV_ID,\n\t\t\t SRVC_LN_DESC,\n\t\t\t CASE \n\t\t\t\tWHEN SUB_CLUSTER IS NOT NULL \n\t\t\t\tTHEN SUB_CLUSTER \n\t\t\t\tELSE FIRM_ID \n\t\t\t END as FIRM_ID,\n\t\t\t CASE \n\t\t\t\tWHEN SUB_CLUSTER IS NOT NULL \n\t\t\t\tTHEN SUB_CLUSTER_DESC \n\t\t\t\tELSE FIRM_DESC \n\t\t\t END AS FIRM_DESC,\n\t\t\t GEOGRAPHY,\n\t\t\t GEOGRAPHY_DESC,\n\t\t\t VTYPE,\n\t\t\t VALUE_TYPE_DESC,\n\t\t\t FYEAR,  \n\t\t\t FPER,\n\t\t\t FPER_DESC,\n\t\t\t FISCAL_YEAR_PER,\n\t\t\t FISCAL_YEAR_PER_DESC,\n\t\t\t ACCOUNT_ID,\n\t\t\t ACCOUNT_DESC,\t\t\t\t\t\t\n\t\t\t sum(QNTY) AS QNTY  \n\t FROM \"_SYS_BIC\".\"FIG.REPORTING.BI/CV_PL_RECON_RC\" \n\t  ('PLACEHOLDER' = ('$$IP_REP_CUR$$', 'USD'),\n\t 'PLACEHOLDER' = ('$$IP_VAL_PUB_INP$$', 'Validation'),\n\t 'PLACEHOLDER' = ('$$IP_EXCHANGE_TYPE$$', 'F'),  \n\t 'PLACEHOLDER' = ('$$IP_DB_IND$$', 'KA')) as a\n\t JOIN \"_SYS_BIC\".\"FIG.SHARED_OBJECTS/CV_DIM_VALUE_TYPE\" as b\n\t on B.VALUE_TYPE = A.VTYPE\n\t-- ACCOUNT IDS FOR HOURS DATA\n\t  WHERE ACCOUNT_ID IN ('4981','4982','4983','4984','4985','4986','4987','4988','4989') \n\t  AND FUNCTION = 10 \n\t  AND VTYPE in (10,50)\n\t  AND SERV_ID != 102010\n\t  AND FYEAR >= (SELECT \n\t\t\t\t\tFYEAR - 1\n \t\t\t\t\tFROM \"FIG_DS_SCHEMA\".\"FIG.FIGR_OVERHAUL::FIG_CTL_TBL.DASHBOARD\"\n\t\t\t\t\tWHERE VAL_PUB = 'Publish'\n\t\t\t\t\tAND DASHBOARD_NAME = 'Financial Summary')\n\tGROUP BY \t \n\t\t\t FUNCTION,\n\t\t\t FUNCTION_DESC,\n\t\t\t SRVC_LN_GRP,\n\t\t\t SRV_LN_GRP_ID_DESC,\n\t\t\t SERV_ID,\n\t\t\t SRVC_LN_DESC,\n\t\t\t CASE \n\t\t\t\tWHEN SUB_CLUSTER IS NOT NULL \n\t\t\t\tTHEN SUB_CLUSTER \n\t\t\t\tELSE FIRM_ID \n\t\t\t END,\n\t\t\t CASE \n\t\t\t\tWHEN SUB_CLUSTER IS NOT NULL \n\t\t\t\tTHEN SUB_CLUSTER_DESC \n\t\t\t\tELSE FIRM_DESC \n\t\t\t END,\n\t\t\t GEOGRAPHY,\n\t\t\t GEOGRAPHY_DESC,\n\t\t\t VTYPE,\n\t\t\t VALUE_TYPE_DESC,\n\t\t\t FYEAR,  \n\t\t\t FPER,\n\t\t\t FPER_DESC,\n\t\t\t FISCAL_YEAR_PER,\n\t\t\t FISCAL_YEAR_PER_DESC,\n\t\t\t ACCOUNT_ID,\n\t\t\t ACCOUNT_DESC\n),\n-------------------\n--   hours_data\n-------------------\nhours_data as (\n\tselect\n\t   FUNCTION  as Business_ID\n\t  ,FUNCTION_DESC  as Business_Description\n\t  ,SRVC_LN_GRP  as Sub_Function_ID\n\t  ,SRV_LN_GRP_ID_DESC   as Sub_Function_Description\n\t  ,SERV_ID as  Service_Line_ID\n\t  ,SRVC_LN_DESC  as Service_Line_Description\n\t  ,FIRM_ID  as Geography_ID\n\t  ,FIRM_DESC  as  Geography_Description  \n\t  ,GEOGRAPHY as Member_Firm\n\t  ,GEOGRAPHY_DESC as Member_Firm_Description\n\t  ,VTYPE as Value_Type\n\t  ,VALUE_TYPE_DESC as Value_Type_Desc\n\t  ,FYEAR  as Fiscal_Year\n\t  ,FPER as Fiscal_Period\n\t  ,FPER_DESC as Fiscal_Period_DESC\n\t  --,ACCOUNT_DESC as Levels\n\t  ,CASE\n\t\tWHEN ACCOUNT_ID='4984' THEN 'Senior Manager'\n\t\tWHEN ACCOUNT_ID='4987' THEN 'Staff'\n\t\tWHEN ACCOUNT_ID='4982' THEN 'Salaried Partner'\n\t\tWHEN ACCOUNT_ID='4988' THEN 'Analyst/Junior Staff'\n\t\tWHEN ACCOUNT_ID='4985' THEN 'Manager'\n\t\tWHEN ACCOUNT_ID='4983' THEN 'Director'\n\t\tWHEN ACCOUNT_ID='4986' THEN 'Senior Staff'\n\t\tWHEN ACCOUNT_ID='4981' THEN 'Partner'\n\t  END as Levels\n\t--  ,'Hours' as Measure_Type\n\t  ,QNTY AS HR_Quantity\n\t  ,NULL as HC_Quantity\n\n\t  from HANA\n)\nselect \n\tround(sum(HR_Quantity),2)   as Total_Hours \nfrom hours_data\nwhere Fiscal_Year >= 2022\nand Levels is not NULL",
+                        "partitionOption": "None"
+                    },
+                    "dataset": {
+                        "referenceName": "AZDS_SRC_GFSAP",
+                        "type": "DatasetReference"
+                    }
+                }
+            },
+            {
+                "name": "Lookup_HANA_TC3_Total_client_service_headcounts",
+                "description": "sum of  TC3_Total_client_service_headcounts in HANA",
+                "type": "Lookup",
+                "dependsOn": [
+                    {
+                        "activity": "Set variable_Total_Client_service_headcount",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "source": {
+                        "type": "SapHanaSource",
+                        "query": "--------------------------------------------------\n-- TC3 - Total client service headcounts\n--------------------------------------------------\nwith HANA  as (\nSELECT \n\t\t FUNCTION,\n\t\t FUNCTION_DESC,\n\t\t SRVC_LN_GRP,\n\t\t SRV_LN_GRP_ID_DESC,\n\t\t SERV_ID,\n\t\t SRVC_LN_DESC,\n\t\t CASE \n\t\t    WHEN SUB_CLUSTER IS NOT NULL \n\t\t\tTHEN SUB_CLUSTER \n\t\t\tELSE FIRM_ID \n\t\t END AS FIRM_ID,\n\t\t CASE \n\t\t    WHEN SUB_CLUSTER IS NOT NULL \n\t\t\tTHEN SUB_CLUSTER_DESC \n\t\t\tELSE FIRM_DESC \n\t\t END AS FIRM_DESC,\n\t     GEOGRAPHY,\n\t     GEOGRAPHY_DESC,\n\t\t VTYPE,\n\t\t VALUE_TYPE_DESC,\n\t\t FYEAR,  \n\t\t FPER,\n\t\t FPER_DESC,\n\t\t FISCAL_YEAR_PER,\n\t\t FISCAL_YEAR_PER_DESC,\n\t\t ACCOUNT_ID,\n\t\t ACCOUNT_DESC,\n \t\t sum(QNTY) AS QNTY  \n FROM \"_SYS_BIC\".\"FIG.REPORTING.BI/CV_PL_RECON_RC\" \n  ('PLACEHOLDER' = ('$$IP_REP_CUR$$', 'USD'),\n 'PLACEHOLDER' = ('$$IP_VAL_PUB_INP$$', 'Validation'),\n 'PLACEHOLDER' = ('$$IP_EXCHANGE_TYPE$$', 'F'),  \n 'PLACEHOLDER' = ('$$IP_DB_IND$$', 'KA')) as a\n JOIN \"_SYS_BIC\".\"FIG.SHARED_OBJECTS/CV_DIM_VALUE_TYPE\" as b\n on B.VALUE_TYPE = A.VTYPE\n-- ACCOUNT IDS FOR HEADCOUNTS DATA\n  WHERE ACCOUNT_ID IN ('4902', '4914', '4907', '4904', '4906', '4933', '4934', '4935', '4946', '4947', '4948')\n  AND FUNCTION = 10 \n  AND VTYPE in (10,50)\n  AND SERV_ID != 102010\n  AND FYEAR >= (SELECT \n\t\t\t\tFYEAR - 1\n \t\t\t\tFROM \"FIG_DS_SCHEMA\".\"FIG.FIGR_OVERHAUL::FIG_CTL_TBL.DASHBOARD\"\n\t\t\t\tWHERE VAL_PUB = 'Publish'\n\t\t\t\tAND DASHBOARD_NAME = 'Financial Summary')\nGROUP By\n\t\t FUNCTION,\n\t\t FUNCTION_DESC,\n\t\t SRVC_LN_GRP,\n\t\t SRV_LN_GRP_ID_DESC,\n\t\t SERV_ID,\n\t\t SRVC_LN_DESC,\n\t\t CASE \n\t\t    WHEN SUB_CLUSTER IS NOT NULL \n\t\t\tTHEN SUB_CLUSTER \n\t\t\tELSE FIRM_ID \n\t\t END,\n\t\t CASE \n\t\t    WHEN SUB_CLUSTER IS NOT NULL \n\t\t\tTHEN SUB_CLUSTER_DESC \n\t\t\tELSE FIRM_DESC \n\t\t END,\n\t     GEOGRAPHY,\n\t     GEOGRAPHY_DESC,\n\t\t VTYPE,\n\t\t VALUE_TYPE_DESC,\n\t\t FYEAR,  \n\t\t FPER,\n\t\t FPER_DESC,\n\t\t FISCAL_YEAR_PER,\n\t\t FISCAL_YEAR_PER_DESC,\n\t\t ACCOUNT_ID,\n\t\t ACCOUNT_DESC\n),\n\n\n--------------------------------\n-- client_service_headcounts\n--------------------------------\n\nclient_service_headcounts as\n(\nselect\n   FUNCTION  as Business_ID\n  ,FUNCTION_DESC  as Business_Description\n  ,SRVC_LN_GRP  as Sub_Function_ID\n  ,SRV_LN_GRP_ID_DESC   as Sub_Function_Description\n  ,SERV_ID as  Service_Line_ID\n  ,SRVC_LN_DESC  as Service_Line_Description\n  ,FIRM_ID  as Geography_ID\n  ,FIRM_DESC  as  Geography_Description  \n  ,GEOGRAPHY as Member_Firm\n  ,GEOGRAPHY_DESC as Member_Firm_Description\n  ,VTYPE as Value_Type\n  ,VALUE_TYPE_DESC as Value_Type_Desc\n  ,FYEAR  as Fiscal_Year\n  ,FPER as Fiscal_Period\n  ,FPER_DESC as Fiscal_Period_Desc\n  ,ACCOUNT_ID\n  ,ACCOUNT_DESC\n  ,CASE\n\tWHEN ACCOUNT_ID='4902' THEN 'Client Service Headcounts'\n\tWHEN ACCOUNT_ID='4904' THEN 'Client Service Headcounts'\n\tWHEN ACCOUNT_ID='4906' THEN 'Client Service Headcounts'\n\tWHEN ACCOUNT_ID='4907' THEN NULL\n\tWHEN ACCOUNT_ID='4914' THEN 'Client Service Headcounts'\n\tWHEN ACCOUNT_ID='4933' THEN 'Client Service Headcounts'\n\tWHEN ACCOUNT_ID='4934' THEN 'Client Service Headcounts'\n\tWHEN ACCOUNT_ID='4935' THEN 'Client Service Headcounts'\n\tWHEN ACCOUNT_ID='4946' THEN 'Client Service Headcounts'\n\tWHEN ACCOUNT_ID='4947' THEN 'Client Service Headcounts'\n\tWHEN ACCOUNT_ID='4948' THEN 'Client Service Headcounts'\n  END as Levels\n--  ,'HeadCount' as Measure_Type\n  ,NULL as HR_Quantity\n  ,QNTY AS HC_Quantity\n\n  from HANA\n)\n\nselect \n\tround(SUM(HC_Quantity),2)  AS Total_client_service_headcounts\nfrom client_service_headcounts\nwhere Fiscal_Year >= 2022\nand Levels is not NULL",
+                        "partitionOption": "None"
+                    },
+                    "dataset": {
+                        "referenceName": "AZDS_SRC_GFSAP",
+                        "type": "DatasetReference"
+                    }
+                }
+            },
+            {
+                "name": "Lookup_HANA_TC2_Total_Headcounts",
+                "description": "sum of TC2 - Total Headcounts in HANA",
+                "type": "Lookup",
+                "dependsOn": [
+                    {
+                        "activity": "Set variable_Headcount",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "source": {
+                        "type": "SapHanaSource",
+                        "query": "----------------------------\n-- TC2 - Total Headcounts\n----------------------------\nwith HANA AS (\nSELECT \n\t\t FUNCTION,\n\t\t FUNCTION_DESC,\n\t\t SRVC_LN_GRP,\n\t\t SRV_LN_GRP_ID_DESC,\n\t\t SERV_ID,\n\t\t SRVC_LN_DESC,\n\t\t CASE \n\t\t    WHEN SUB_CLUSTER IS NOT NULL \n\t\t\tTHEN SUB_CLUSTER \n\t\t\tELSE FIRM_ID \n\t\t END AS FIRM_ID,\n\t\t CASE \n\t\t    WHEN SUB_CLUSTER IS NOT NULL \n\t\t\tTHEN SUB_CLUSTER_DESC \n\t\t\tELSE FIRM_DESC \n\t\t END AS FIRM_DESC,\n\t     GEOGRAPHY,\n\t     GEOGRAPHY_DESC,\n\t\t VTYPE,\n\t\t VALUE_TYPE_DESC,\n\t\t FYEAR,  \n\t\t FPER,\n\t\t FPER_DESC,\n\t\t FISCAL_YEAR_PER,\n\t\t FISCAL_YEAR_PER_DESC,\n\t\t ACCOUNT_ID,\n\t\t ACCOUNT_DESC,\n \t\t sum(QNTY) AS QNTY  \n FROM \"_SYS_BIC\".\"FIG.REPORTING.BI/CV_PL_RECON_RC\" \n ('PLACEHOLDER' = ('$$IP_REP_CUR$$', 'USD'),\n 'PLACEHOLDER' = ('$$IP_VAL_PUB_INP$$', 'Validation'),\n 'PLACEHOLDER' = ('$$IP_EXCHANGE_TYPE$$', 'F'),  \n 'PLACEHOLDER' = ('$$IP_DB_IND$$', 'KA')) as a\n JOIN \"_SYS_BIC\".\"FIG.SHARED_OBJECTS/CV_DIM_VALUE_TYPE\" as b\n on B.VALUE_TYPE = A.VTYPE\n-- ACCOUNT IDS FOR HEADCOUNTS DATA\n  WHERE ACCOUNT_ID IN ('4902', '4914', '4907', '4904', '4906', '4933', '4934', '4935', '4946', '4947', '4948') \n  AND FUNCTION = 10 \n  AND VTYPE in (10,50)\n  AND SERV_ID != 102010\n  AND FYEAR >= (SELECT \n\t\t\t\tFYEAR - 1\n \t\t\t\tFROM \"FIG_DS_SCHEMA\".\"FIG.FIGR_OVERHAUL::FIG_CTL_TBL.DASHBOARD\"\n\t\t\t\tWHERE VAL_PUB = 'Publish'\n\t\t\t\tAND DASHBOARD_NAME = 'Financial Summary')\nGROUP By\n\t\t FUNCTION,\n\t\t FUNCTION_DESC,\n\t\t SRVC_LN_GRP,\n\t\t SRV_LN_GRP_ID_DESC,\n\t\t SERV_ID,\n\t\t SRVC_LN_DESC,\n\t\t CASE \n\t\t    WHEN SUB_CLUSTER IS NOT NULL \n\t\t\tTHEN SUB_CLUSTER \n\t\t\tELSE FIRM_ID \n\t\t END,\n\t\t CASE \n\t\t    WHEN SUB_CLUSTER IS NOT NULL \n\t\t\tTHEN SUB_CLUSTER_DESC \n\t\t\tELSE FIRM_DESC \n\t\t END,\n\t     GEOGRAPHY,\n\t     GEOGRAPHY_DESC,\n\t\t VTYPE,\n\t\t VALUE_TYPE_DESC,\n\t\t FYEAR,  \n\t\t FPER,\n\t\t FPER_DESC,\n\t\t FISCAL_YEAR_PER,\n\t\t FISCAL_YEAR_PER_DESC,\n\t\t ACCOUNT_ID,\n\t\t ACCOUNT_DESC\n),\n----------------------\n--  headcounts_data\n----------------------\nheadcounts_data as\n(\nselect\n   FUNCTION  as Business_ID\n  ,FUNCTION_DESC  as Business_Description\n  ,SRVC_LN_GRP  as Sub_Function_ID\n  ,SRV_LN_GRP_ID_DESC   as Sub_Function_Description\n  ,SERV_ID as  Service_Line_ID\n  ,SRVC_LN_DESC  as Service_Line_Description\n  ,FIRM_ID  as Geography_ID\n  ,FIRM_DESC  as  Geography_Description  \n  ,GEOGRAPHY as Member_Firm\n  ,GEOGRAPHY_DESC as Member_Firm_Description\n  ,VTYPE as Value_Type\n  ,VALUE_TYPE_DESC as Value_Type_Desc\n  ,FYEAR  as Fiscal_Year\n  ,FPER as Fiscal_Period\n  ,FPER_DESC as Fiscal_Period_DESC\n  ,CASE\n\tWHEN ACCOUNT_ID='4902' THEN 'Equity Partner'\n\tWHEN ACCOUNT_ID='4904' THEN 'Salaried Partner'\n\tWHEN ACCOUNT_ID='4906' THEN NULL\n\tWHEN ACCOUNT_ID='4907' THEN 'Equity Partner'\n\tWHEN ACCOUNT_ID='4914' THEN 'Equity Partner'\n\tWHEN ACCOUNT_ID='4933' THEN 'Director'\n\tWHEN ACCOUNT_ID='4934' THEN 'Senior Manager'\n\tWHEN ACCOUNT_ID='4935' THEN 'Manager'\n\tWHEN ACCOUNT_ID='4946' THEN 'Senior Staff'\n\tWHEN ACCOUNT_ID='4947' THEN 'Staff'\n\tWHEN ACCOUNT_ID='4948' THEN 'Analyst/Junior Staff'\n  END as Levels\n--  ,'HeadCount' as Measure_Type\n  ,NULL as HR_Quantity\n  ,QNTY AS HC_Quantity\n\n  from HANA\n)\nselect \n\trounD(sum(HC_Quantity),2) as Total_Headcounts \nfrom headcounts_data\nwhere Fiscal_Year >= 2022\nand Levels is not NULL",
+                        "partitionOption": "None"
+                    },
+                    "dataset": {
+                        "referenceName": "AZDS_SRC_GFSAP",
+                        "type": "DatasetReference"
+                    }
+                }
+            },
+            {
+                "name": "If Condition RowCount",
+                "type": "IfCondition",
+                "dependsOn": [
+                    {
+                        "activity": "Set variableRowcount",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@equals(pipeline().parameters.KIOSK_RowCopied\n, variables('KIOSK_Row_Count')\n)",
+                        "type": "Expression"
+                    },
+                    "ifFalseActivities": [
+                        {
+                            "name": "Failure Notification auditing Rowcount",
+                            "type": "WebActivity",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "7.00:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "url": {
+                                    "value": "@pipeline().parameters.automation_endpoint",
+                                    "type": "Expression"
+                                },
+                                "method": "POST",
+                                "body": {
+                                    "value": "{\n    \"message\" : \"Hi there, \\nThe auditing Rowcount failed.@{concat('\\nThanks,','\\n\\n',pipeline().DataFactory,  '\\n',formatDateTime(convertFromUtc(utcNow(),'Eastern Standard Time'),'yyyy-MM-dd hh:mmtt')    )}\",\n    \"to\": \"@{pipeline().parameters.receiver}\" ,\n    \"cc\": \"@{pipeline().parameters.cc}\" ,\n    \"bcc\": \"@{pipeline().parameters.bcc}\" ,\n    \"subject\" : \"No-Reply from Automation: The auditing Rowcount failed.\"\n}",
+                                    "type": "Expression"
+                                }
+                            }
+                        },
+                        {
+                            "name": "To auditing Rowcount Failed",
+                            "type": "Fail",
+                            "dependsOn": [
+                                {
+                                    "activity": "Failure Notification auditing Rowcount",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "message": "To auditing Rowcount Failed",
+                                "errorCode": "500"
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "name": "If Condition Hours",
+                "type": "IfCondition",
+                "dependsOn": [
+                    {
+                        "activity": "Lookup_HANA_TC1_Total_Hours",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@equals( \nstring(activity('Lookup_HANA_TC1_Total_Hours').output.firstRow.TOTAL_HOURS)\n, string(variables('KIOSK_TC1_Total_Hours'))\n)",
+                        "type": "Expression"
+                    },
+                    "ifFalseActivities": [
+                        {
+                            "name": "Failure Notification auditing Total_Hours",
+                            "type": "WebActivity",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "7.00:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "url": {
+                                    "value": "@pipeline().parameters.automation_endpoint",
+                                    "type": "Expression"
+                                },
+                                "method": "POST",
+                                "body": {
+                                    "value": "{\n    \"message\" : \"Hi there, \\nThe Total_Hours auditing failed.@{concat('\\nThanks,','\\n\\n',pipeline().DataFactory,  '\\n',formatDateTime(convertFromUtc(utcNow(),'Eastern Standard Time'),'yyyy-MM-dd hh:mmtt')    )}\",\n    \"to\": \"@{pipeline().parameters.receiver}\" ,\n    \"cc\": \"@{pipeline().parameters.cc}\" ,\n    \"bcc\": \"@{pipeline().parameters.bcc}\" ,\n    \"subject\" : \"No-Reply from Automation: The Total_Hours auditing failed.\"\n}",
+                                    "type": "Expression"
+                                }
+                            }
+                        },
+                        {
+                            "name": "To Total_Hours auditing Failed",
+                            "type": "Fail",
+                            "dependsOn": [
+                                {
+                                    "activity": "Failure Notification auditing Total_Hours",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "message": "To Total_Hours auditing Failed",
+                                "errorCode": "500"
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "name": "If Condition Headcounts",
+                "type": "IfCondition",
+                "dependsOn": [
+                    {
+                        "activity": "Lookup_HANA_TC2_Total_Headcounts",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@equals(\nstring(variables('KIOSK_TC2_Headcounts')), \nstring(activity('Lookup_HANA_TC2_Total_Headcounts').output.firstRow.TOTAL_HEADCOUNTS)\n)",
+                        "type": "Expression"
+                    },
+                    "ifFalseActivities": [
+                        {
+                            "name": "Failure Notification auditing Total_Headcounts",
+                            "type": "WebActivity",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "7.00:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "url": {
+                                    "value": "@pipeline().parameters.automation_endpoint",
+                                    "type": "Expression"
+                                },
+                                "method": "POST",
+                                "body": {
+                                    "value": "{\n    \"message\" : \"Hi there, \\nThe Total_Headcounts auditing failed.@{concat('\\nThanks,','\\n\\n',pipeline().DataFactory,  '\\n',formatDateTime(convertFromUtc(utcNow(),'Eastern Standard Time'),'yyyy-MM-dd hh:mmtt')    )}\",\n    \"to\": \"@{pipeline().parameters.receiver}\" ,\n    \"cc\": \"@{pipeline().parameters.cc}\" ,\n    \"bcc\": \"@{pipeline().parameters.bcc}\" ,\n    \"subject\" : \"No-Reply from Automation: The Total_Headcounts auditing failed.\"\n}",
+                                    "type": "Expression"
+                                }
+                            }
+                        },
+                        {
+                            "name": "Total_Headcounts auditing Failed",
+                            "type": "Fail",
+                            "dependsOn": [
+                                {
+                                    "activity": "Failure Notification auditing Total_Headcounts",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "message": "Total_Headcounts auditing Failed",
+                                "errorCode": "500"
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "name": "If Condition Total_Clients_service_count",
+                "type": "IfCondition",
+                "dependsOn": [
+                    {
+                        "activity": "Lookup_HANA_TC3_Total_client_service_headcounts",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@equals( \nstring(variables('KIOSK_TC3_Total_Client_Service_Headcounts'))\n, string(activity('Lookup_HANA_TC3_Total_client_service_headcounts').output.firstRow.TOTAL_CLIENT_SERVICE_HEADCOUNTS)\n)",
+                        "type": "Expression"
+                    },
+                    "ifFalseActivities": [
+                        {
+                            "name": "Failure Notification Archive_copy1",
+                            "type": "WebActivity",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "7.00:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "url": {
+                                    "value": "@pipeline().parameters.automation_endpoint",
+                                    "type": "Expression"
+                                },
+                                "method": "POST",
+                                "body": {
+                                    "value": "{\n    \"message\" : \"Hi there, \\nThe Total_client_service_headcounts AUDITING failed.@{concat('\\nThanks,','\\n\\n',pipeline().DataFactory,  '\\n',formatDateTime(convertFromUtc(utcNow(),'Eastern Standard Time'),'yyyy-MM-dd hh:mmtt')    )}\",\n    \"to\": \"@{pipeline().parameters.receiver}\" ,\n    \"cc\": \"@{pipeline().parameters.cc}\" ,\n    \"bcc\": \"@{pipeline().parameters.bcc}\" ,\n    \"subject\" : \"No-Reply from Automation: The AUDITING failed.\"\n}",
+                                    "type": "Expression"
+                                }
+                            }
+                        },
+                        {
+                            "name": "To Archive Failed_copy1",
+                            "type": "Fail",
+                            "dependsOn": [
+                                {
+                                    "activity": "Failure Notification Archive_copy1",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "message": "AUDITING Total_Client_Service_Headcounts Failed",
+                                "errorCode": "500"
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "name": "Set variableRowcount",
+                "type": "SetVariable",
+                "dependsOn": [
+                    {
+                        "activity": "Lookup KIOSK Auditing values",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "KIOSK_Row_Count",
+                    "value": {
+                        "value": "@activity('Lookup KIOSK Auditing values').output.firstRow.Row_Count",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "Set variable_Total_Client_service_headcount",
+                "type": "SetVariable",
+                "dependsOn": [
+                    {
+                        "activity": "Lookup KIOSK Auditing values",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "KIOSK_TC3_Total_Client_Service_Headcounts",
+                    "value": {
+                        "value": "@activity('Lookup KIOSK Auditing values').output.firstRow.TC3_Total_Client_Service_Headcounts",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "Set variable_Hours",
+                "type": "SetVariable",
+                "dependsOn": [
+                    {
+                        "activity": "Lookup KIOSK Auditing values",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "KIOSK_TC1_Total_Hours",
+                    "value": {
+                        "value": "@activity('Lookup KIOSK Auditing values').output.firstRow.TC1_Total_Hours",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "Set variable_Headcount",
+                "type": "SetVariable",
+                "dependsOn": [
+                    {
+                        "activity": "Lookup KIOSK Auditing values",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "KIOSK_TC2_Headcounts",
+                    "value": {
+                        "value": "@activity('Lookup KIOSK Auditing values').output.firstRow.TC2_Total_Headcounts",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "Execute Pipeline1",
+                "type": "ExecutePipeline",
+                "dependsOn": [
+                    {
+                        "activity": "If Condition RowCount",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    },
+                    {
+                        "activity": "If Condition Total_Clients_service_count",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    },
+                    {
+                        "activity": "If Condition Hours",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    },
+                    {
+                        "activity": "If Condition Headcounts",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "pipeline": {
+                        "referenceName": "AZPL_GF_GA_FIG_Extract_L0Child",
+                        "type": "PipelineReference"
+                    },
+                    "waitOnCompletion": true,
+                    "parameters": {
+                        "GA_Container": {
+                            "value": "@pipeline().parameters.GA_Container",
+                            "type": "Expression"
+                        },
+                        "retention_days": {
+                            "value": "@pipeline().parameters.retention_days",
+                            "type": "Expression"
+                        },
+                        "receiver": {
+                            "value": "@pipeline().parameters.receiver",
+                            "type": "Expression"
+                        },
+                        "cc": {
+                            "value": "@pipeline().parameters.cc",
+                            "type": "Expression"
+                        },
+                        "bcc": {
+                            "value": "@pipeline().parameters.bcc",
+                            "type": "Expression"
+                        },
+                        "KIOSK_archivesDirectory": {
+                            "value": "@pipeline().parameters.KIOSK_archivesDirectory",
+                            "type": "Expression"
+                        },
+                        "KIOSK_Filename": {
+                            "value": "@pipeline().parameters.KIOSK_Filename",
+                            "type": "Expression"
+                        },
+                        "KIOSK_Container": {
+                            "value": "@pipeline().parameters.KIOSK_Container",
+                            "type": "Expression"
+                        },
+                        "pull_Status": {
+                            "value": "@pipeline().parameters.pull_Status",
+                            "type": "Expression"
+                        },
+                        "KIOSK_endpoint": {
+                            "value": "@pipeline().parameters.KIOSK_endpoint",
+                            "type": "Expression"
+                        },
+                        "KIOSK_storageAccount0094": {
+                            "value": "@pipeline().parameters.KIOSK_storageAccount0094",
+                            "type": "Expression"
+                        },
+                        "GA_EMA_Endpoint": {
+                            "value": "@pipeline().parameters.GA_EMA_Endpoint",
+                            "type": "Expression"
+                        },
+                        "GA_AME_Endpoint": {
+                            "value": "@pipeline().parameters.GA_AME_Endpoint",
+                            "type": "Expression"
+                        },
+                        "GA_APA_Endpoint": {
+                            "value": "@pipeline().parameters.GA_APA_Endpoint",
+                            "type": "Expression"
+                        },
+                        "GA_filename": {
+                            "value": "@pipeline().parameters.GA_filename",
+                            "type": "Expression"
+                        },
+                        "GA_Endpoint_EMA_Enabled": {
+                            "value": "@pipeline().parameters.GA_Endpoint_EMA_Enabled",
+                            "type": "Expression"
+                        },
+                        "GA_Endpoint_AME_Enabled": {
+                            "value": "@pipeline().parameters.GA_Endpoint_AME_Enabled",
+                            "type": "Expression"
+                        },
+                        "GA_Endpoint_APA_Enabled": {
+                            "value": "@pipeline().parameters.GA_Endpoint_APA_Enabled",
+                            "type": "Expression"
+                        },
+                        "automation_endpoint": {
+                            "value": "@pipeline().parameters.automation_endpoint",
+                            "type": "Expression"
+                        },
+                        "Skip_Check_for_Publish_Load_ID": {
+                            "value": "@pipeline().parameters.Skip_Check_for_Publish_Load_ID",
+                            "type": "Expression"
+                        },
+                        "Disable_Data_Validation": {
+                            "value": "@pipeline().parameters.Disable_Data_Validation",
+                            "type": "Expression"
+                        },
+                        "RowCount": {
+                            "value": "@variables('KIOSK_Row_Count')",
+                            "type": "Expression"
+                        },
+                        "Total_Hours": {
+                            "value": "@variables('KIOSK_TC1_Total_Hours')",
+                            "type": "Expression"
+                        },
+                        "Total_Headercount": {
+                            "value": "@variables('KIOSK_TC2_Headcounts')",
+                            "type": "Expression"
+                        },
+                        "Total_Client_service_headcount": {
+                            "value": "@variables('KIOSK_TC3_Total_Client_Service_Headcounts')",
+                            "type": "Expression"
+                        }
+                    }
+                }
+            },
+            {
+                "name": "To Archive Failed_copy1_copy1",
+                "type": "Fail",
+                "dependsOn": [
+                    {
+                        "activity": "If Condition Total_Clients_service_count",
+                        "dependencyConditions": [
+                            "Failed"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "message": "AUDITING Total_Client_Service_Headcounts Failed",
+                    "errorCode": "500"
+                }
+            },
+            {
+                "name": "To Total_Hours auditing Failed_copy1",
+                "type": "Fail",
+                "dependsOn": [
+                    {
+                        "activity": "If Condition Hours",
+                        "dependencyConditions": [
+                            "Failed"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "message": "To Total_Hours auditing Failed",
+                    "errorCode": "500"
+                }
+            },
+            {
+                "name": "Total_Headcounts auditing Failed_copy1",
+                "type": "Fail",
+                "dependsOn": [
+                    {
+                        "activity": "If Condition Headcounts",
+                        "dependencyConditions": [
+                            "Failed"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "message": "Total_Headcounts auditing Failed",
+                    "errorCode": "500"
+                }
+            },
+            {
+                "name": "To auditing Rowcount Failed_copy1",
+                "type": "Fail",
+                "dependsOn": [
+                    {
+                        "activity": "If Condition RowCount",
+                        "dependencyConditions": [
+                            "Failed"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "message": "To auditing Rowcount Failed",
+                    "errorCode": "500"
+                }
+            },
+            {
+                "name": "Auditing KIOSK-HANA Failed",
+                "type": "Fail",
+                "dependsOn": [
+                    {
+                        "activity": "Auditing KIOSK-HANA Failed notifcation",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "message": "Auditing KIOSK-HANA Failed",
+                    "errorCode": "500"
+                }
+            },
+            {
+                "name": "Auditing KIOSK-HANA Failed notifcation",
+                "type": "WebActivity",
+                "dependsOn": [
+                    {
+                        "activity": "DF_KIOSK_Auditing",
+                        "dependencyConditions": [
+                            "Failed"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "url": {
+                        "value": "@pipeline().parameters.automation_endpoint",
+                        "type": "Expression"
+                    },
+                    "method": "POST",
+                    "body": {
+                        "value": "{\n    \"message\" : \"Hi there, \\nThe auditing KIOSK-HANA failed.@{concat('\\nThanks,','\\n\\n',pipeline().DataFactory,  '\\n',formatDateTime(convertFromUtc(utcNow(),'Eastern Standard Time'),'yyyy-MM-dd hh:mmtt')    )}\",\n    \"to\": \"@{pipeline().parameters.receiver}\" ,\n    \"cc\": \"@{pipeline().parameters.cc}\" ,\n    \"bcc\": \"@{pipeline().parameters.bcc}\" ,\n    \"subject\" : \"No-Reply from Automation: The auditing KIOSK-HANA Failed failed.@{activity('DF_KIOSK_Auditing').output.error.Message}\"\n}",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "DQD_OPP",
+                "type": "ExecutePipeline",
+                "dependsOn": [],
+                "userProperties": [],
+                "typeProperties": {
+                    "pipeline": {
+                        "referenceName": "DQD_OPP",
+                        "type": "PipelineReference"
+                    },
+                    "waitOnCompletion": true
+                }
+            }
+        ],
+        "parameters": {
+            "KIOSK_Container": {
+                "type": "string",
+                "defaultValue": "global-audit"
+            },
+            "KIOSK_endpoint": {
+                "type": "string",
+                "defaultValue": "https://app0094sqldev.blob.core.windows.net"
+            },
+            "KIOSK_Filename": {
+                "type": "string",
+                "defaultValue": "KIOSK-GF-GA-FIG_Extract_1"
+            },
+            "KIOSK_RowCopied": {
+                "type": "string",
+                "defaultValue": "14852"
+            },
+            "automation_endpoint": {
+                "type": "string",
+                "defaultValue": "https://ffe89918-a835-4f0c-9a68-6043d8b27017.webhook.we.azure-automation.net/webhooks?token=%2b9KMc34uibgt4JB5ENLxRW22aPqvJBzz9XdY1xuhlYA%3d"
+            },
+            "receiver": {
+                "type": "string",
+                "defaultValue": "ajohnchuan@deloitte.ca"
+            },
+            "cc": {
+                "type": "string",
+                "defaultValue": "mohmoinudidn@deloitte.com"
+            },
+            "bcc": {
+                "type": "string",
+                "defaultValue": "erjchen@deloitte.ca"
+            },
+            "GA_Container": {
+                "type": "string",
+                "defaultValue": "figdata"
+            },
+            "retention_days": {
+                "type": "string",
+                "defaultValue": "365"
+            },
+            "KIOSK_archivesDirectory": {
+                "type": "string",
+                "defaultValue": "archive"
+            },
+            "pull_Status": {
+                "type": "string",
+                "defaultValue": "KIOSK-GF-GA-P_VALUE.txt"
+            },
+            "KIOSK_storageAccount0094": {
+                "type": "string",
+                "defaultValue": "app0094sqldev"
+            },
+            "GA_EMA_Endpoint": {
+                "type": "string",
+                "defaultValue": "https://derfigsaema.blob.core.windows.net"
+            },
+            "GA_AME_Endpoint": {
+                "type": "string",
+                "defaultValue": "https://derfigsaame.blob.core.windows.net"
+            },
+            "GA_APA_Endpoint": {
+                "type": "string",
+                "defaultValue": "https://derfigsaapa.blob.core.windows.net"
+            },
+            "GA_filename": {
+                "type": "string",
+                "defaultValue": "FIGExtract"
+            },
+            "GA_Endpoint_EMA_Enabled": {
+                "type": "string",
+                "defaultValue": "y"
+            },
+            "GA_Endpoint_AME_Enabled": {
+                "type": "string",
+                "defaultValue": "y"
+            },
+            "GA_Endpoint_APA_Enabled": {
+                "type": "string",
+                "defaultValue": "y"
+            },
+            "Skip_Check_for_Publish_Load_ID": {
+                "type": "string",
+                "defaultValue": "y"
+            },
+            "Disable_Data_Validation": {
+                "type": "string",
+                "defaultValue": "y"
+            }
+        },
+        "variables": {
+            "KIOSK_Row_Count": {
+                "type": "String"
+            },
+            "KIOSK_TC1_Total_Hours": {
+                "type": "String"
+            },
+            "KIOSK_TC2_Headcounts": {
+                "type": "String"
+            },
+            "KIOSK_TC3_Total_Client_Service_Headcounts": {
+                "type": "String"
+            }
+        },
+        "folder": {
+            "name": "Extended_Reporting"
+        },
+        "annotations": []
+    }
+}

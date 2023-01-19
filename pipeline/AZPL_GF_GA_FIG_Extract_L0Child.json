@@ -1,0 +1,1919 @@
+{
+    "name": "AZPL_GF_GA_FIG_Extract_L0Child",
+    "properties": {
+        "description": "In short:\n1) First delivery:\n  >file name:  KIOSK-GF-GA-FIG_Extract.csv.gz\n  >save to: app2145sqldev; \nunder sub-directory, named YYYYMMDD\n  >Format: csv\n  >Compress: GZip\n=========================\n2) Second delivery:\n >file name:  KIOSK-GF-GA-FIG_Extract.csv\n>save to: app0094sqldev\n at root directory\n>Format: csv, \n>Compress: No \n=========================\n3) Third Delivery:\n >file name:  KIOSK-GF-GA-FIG_Extract-YYYYMMDD-HHMM.csv\n>save to: app0094sqldev\n at sub-directory archive\n>Format: csv, \n>Compress: No \n=========================\nfor memory: \n#1105604 -> Destination & FileName\n#1123260 -> linked services\n#1080216 -> file Type & FileName\n#1080214 -> schema\n",
+        "activities": [
+            {
+                "name": "Matedata get filename under archive",
+                "description": "Get files metadata to detect file dumping date",
+                "type": "GetMetadata",
+                "dependsOn": [
+                    {
+                        "activity": "If Condition valid archive directory exist or creat",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "dataset": {
+                        "referenceName": "AZDS_SNK_KIOSK",
+                        "type": "DatasetReference",
+                        "parameters": {
+                            "container": {
+                                "value": "@concat(pipeline().parameters.KIOSK_Container\n,'/'\n,pipeline().parameters.KIOSK_archivesDirectory\n)",
+                                "type": "Expression"
+                            },
+                            "tar_file": "*.*",
+                            "storageAccountName": {
+                                "value": "@pipeline().parameters.KIOSK_storageAccount0094",
+                                "type": "Expression"
+                            },
+                            "endpoint": {
+                                "value": "@pipeline().parameters.KIOSK_endpoint",
+                                "type": "Expression"
+                            }
+                        }
+                    },
+                    "fieldList": [
+                        "childItems"
+                    ],
+                    "storeSettings": {
+                        "type": "AzureBlobStorageReadSettings",
+                        "recursive": true,
+                        "enablePartitionDiscovery": false
+                    },
+                    "formatSettings": {
+                        "type": "DelimitedTextReadSettings"
+                    }
+                }
+            },
+            {
+                "name": "ForEach",
+                "description": "traversal files in the directory",
+                "type": "ForEach",
+                "dependsOn": [
+                    {
+                        "activity": "Matedata get filename under archive",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "items": {
+                        "value": "@activity('Matedata get filename under archive').output.childItems",
+                        "type": "Expression"
+                    },
+                    "isSequential": true,
+                    "activities": [
+                        {
+                            "name": "If Condition",
+                            "description": "Checking timestamp on the filename, if start with KIOSK \nand >= expected days ()  \nthat means too older to keep\n,carry on process it, otherwise ignore.",
+                            "type": "IfCondition",
+                            "dependsOn": [],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "expression": {
+                                    "value": "@and(\n    and(startswith(item().Name,'KIOSK'), endswith(item().Name,'csv'))\n    ,\n    greater(\n\t\tdiv(\n\t\t\tsub(\n\t\t\t\t  ticks(utcNow('yyyy-MM-dd')),\n\t\t\t\t  ticks(    \t  \n\t\t\t\t\t\tconvertToUtc(\n\t\t\t\t\t\t\tconcat(\n\t\t\t\t\t\t\t  substring(item().Name,24,4),\n\t\t\t\t\t\t\t  '-',\n\t\t\t\t\t\t\t  substring(item().Name,28,2),\n\t\t\t\t\t\t\t  '-',\n\t\t\t\t\t\t\t  substring(item().Name,30,2)\n\t\t\t\t\t\t\t  ),\n\t\t\t\t\t\t  'Eastern Standard Time','yyyy-MM-dd')\n\t\t\t\t\t  ) \n\t\t\t\t), \n\t\t\t  864000000000\n\t\t  )\n\t\t  , pipeline().parameters.retention_days\n\t\t)\n)",
+                                    "type": "Expression"
+                                },
+                                "ifTrueActivities": [
+                                    {
+                                        "name": "remove item name",
+                                        "type": "SetVariable",
+                                        "dependsOn": [],
+                                        "userProperties": [],
+                                        "typeProperties": {
+                                            "variableName": "var_item_monitor",
+                                            "value": {
+                                                "value": "@item().Name",
+                                                "type": "Expression"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "name": "Delete older file from app0094sqldev",
+                                        "description": "Delete those files that is older than XXX days",
+                                        "type": "Delete",
+                                        "dependsOn": [
+                                            {
+                                                "activity": "remove item name",
+                                                "dependencyConditions": [
+                                                    "Succeeded"
+                                                ]
+                                            }
+                                        ],
+                                        "policy": {
+                                            "timeout": "7.00:00:00",
+                                            "retry": 0,
+                                            "retryIntervalInSeconds": 30,
+                                            "secureOutput": false,
+                                            "secureInput": false
+                                        },
+                                        "userProperties": [],
+                                        "typeProperties": {
+                                            "dataset": {
+                                                "referenceName": "AZDS_SNK_KIOSK",
+                                                "type": "DatasetReference",
+                                                "parameters": {
+                                                    "container": {
+                                                        "value": "@concat(pipeline().parameters.KIOSK_Container\n,'/'\n,pipeline().parameters.KIOSK_archivesDirectory\n)",
+                                                        "type": "Expression"
+                                                    },
+                                                    "tar_file": {
+                                                        "value": "@variables('var_item_monitor')",
+                                                        "type": "Expression"
+                                                    },
+                                                    "storageAccountName": {
+                                                        "value": "@pipeline().parameters.KIOSK_storageAccount0094",
+                                                        "type": "Expression"
+                                                    },
+                                                    "endpoint": {
+                                                        "value": "@pipeline().parameters.KIOSK_endpoint",
+                                                        "type": "Expression"
+                                                    }
+                                                }
+                                            },
+                                            "enableLogging": false,
+                                            "storeSettings": {
+                                                "type": "AzureBlobStorageReadSettings",
+                                                "recursive": true,
+                                                "enablePartitionDiscovery": false
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "name": "If Condition EMA Enable",
+                "type": "IfCondition",
+                "dependsOn": [],
+                "userProperties": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@or(\n equals(pipeline().parameters.GA_Endpoint_EMA_Enabled,'yes')\n,equals(pipeline().parameters.GA_Endpoint_EMA_Enabled,'y')\n)",
+                        "type": "Expression"
+                    },
+                    "ifTrueActivities": [
+                        {
+                            "name": "Copy data from KIOSK to GA-EMA",
+                            "type": "Copy",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "7.00:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "source": {
+                                    "type": "DelimitedTextSource",
+                                    "storeSettings": {
+                                        "type": "AzureBlobStorageReadSettings",
+                                        "recursive": true,
+                                        "enablePartitionDiscovery": false
+                                    },
+                                    "formatSettings": {
+                                        "type": "DelimitedTextReadSettings"
+                                    }
+                                },
+                                "sink": {
+                                    "type": "DelimitedTextSink",
+                                    "storeSettings": {
+                                        "type": "AzureBlobStorageWriteSettings"
+                                    },
+                                    "formatSettings": {
+                                        "type": "DelimitedTextWriteSettings",
+                                        "quoteAllText": true,
+                                        "fileExtension": ".txt"
+                                    }
+                                },
+                                "enableStaging": false,
+                                "translator": {
+                                    "type": "TabularTranslator",
+                                    "mappings": [
+                                        {
+                                            "source": {
+                                                "name": "Business_ID",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Business_ID",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Business_Description",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Business_Description",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Sub_Function_ID",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Sub_Function_ID",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Sub_Function_Description",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Sub_Function_Description",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Service_Line_ID",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Service_Line_ID",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Service_Line_Description",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Service_Line_Description",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Geography_ID",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Geography_ID",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Geography_Description",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Geography_Description",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Member_Firm",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Member_Firm",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Member_Firm_Description",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Member_Firm_Description",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Value_Type",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Value_Type",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Value_Type_Desc",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Value_Type_Desc",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Fiscal_Year",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Fiscal_Year",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Fiscal_Period",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Fiscal_Period",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Fiscal_Period_Desc",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Fiscal_Period_Desc",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Levels",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Levels",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Hours",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Hours",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Headcounts",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Headcounts",
+                                                "physicalType": "String"
+                                            }
+                                        }
+                                    ],
+                                    "typeConversion": true,
+                                    "typeConversionSettings": {
+                                        "allowDataTruncation": true,
+                                        "treatBooleanAsNumber": false
+                                    }
+                                }
+                            },
+                            "inputs": [
+                                {
+                                    "referenceName": "AZDS_SNK_KIOSK",
+                                    "type": "DatasetReference",
+                                    "parameters": {
+                                        "container": {
+                                            "value": "@pipeline().parameters.KIOSK_Container",
+                                            "type": "Expression"
+                                        },
+                                        "tar_file": {
+                                            "value": "@concat(pipeline().parameters.KIOSK_Filename,'.csv')",
+                                            "type": "Expression"
+                                        },
+                                        "storageAccountName": {
+                                            "value": "@pipeline().parameters.KIOSK_storageAccount0094",
+                                            "type": "Expression"
+                                        },
+                                        "endpoint": {
+                                            "value": "@pipeline().parameters.KIOSK_endpoint",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                }
+                            ],
+                            "outputs": [
+                                {
+                                    "referenceName": "AZDS_SNK_GA",
+                                    "type": "DatasetReference",
+                                    "parameters": {
+                                        "container": {
+                                            "value": "@concat(pipeline().parameters.GA_Container\n,'/'\n,formatDateTime(convertFromUtc(utcNow(),'Eastern Standard Time'),'yyyyMMdd')\n)",
+                                            "type": "Expression"
+                                        },
+                                        "tar_filename": {
+                                            "value": "@concat(pipeline().parameters.GA_filename\n,'.csv.gz'\n)",
+                                            "type": "Expression"
+                                        },
+                                        "endpoint": {
+                                            "value": "@pipeline().parameters.GA_EMA_Endpoint",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            },
+            {
+                "name": "If Condition AME Enable",
+                "type": "IfCondition",
+                "dependsOn": [],
+                "userProperties": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@or(\n equals(pipeline().parameters.GA_Endpoint_AME_Enabled,'yes')\n,equals(pipeline().parameters.GA_Endpoint_AME_Enabled,'y')\n)",
+                        "type": "Expression"
+                    },
+                    "ifTrueActivities": [
+                        {
+                            "name": "Copy data from KIOSK to GA-AME",
+                            "type": "Copy",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "7.00:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "source": {
+                                    "type": "DelimitedTextSource",
+                                    "storeSettings": {
+                                        "type": "AzureBlobStorageReadSettings",
+                                        "recursive": true,
+                                        "enablePartitionDiscovery": false
+                                    },
+                                    "formatSettings": {
+                                        "type": "DelimitedTextReadSettings"
+                                    }
+                                },
+                                "sink": {
+                                    "type": "DelimitedTextSink",
+                                    "storeSettings": {
+                                        "type": "AzureBlobStorageWriteSettings"
+                                    },
+                                    "formatSettings": {
+                                        "type": "DelimitedTextWriteSettings",
+                                        "quoteAllText": true,
+                                        "fileExtension": ".txt"
+                                    }
+                                },
+                                "enableStaging": false,
+                                "translator": {
+                                    "type": "TabularTranslator",
+                                    "mappings": [
+                                        {
+                                            "source": {
+                                                "name": "Business_ID",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Business_ID",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Business_Description",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Business_Description",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Sub_Function_ID",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Sub_Function_ID",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Sub_Function_Description",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Sub_Function_Description",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Service_Line_ID",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Service_Line_ID",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Service_Line_Description",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Service_Line_Description",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Geography_ID",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Geography_ID",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Geography_Description",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Geography_Description",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Member_Firm",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Member_Firm",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Member_Firm_Description",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Member_Firm_Description",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Value_Type",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Value_Type",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Value_Type_Desc",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Value_Type_Desc",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Fiscal_Year",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Fiscal_Year",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Fiscal_Period",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Fiscal_Period",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Fiscal_Period_Desc",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Fiscal_Period_Desc",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Levels",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Levels",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Hours",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Hours",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Headcounts",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Headcounts",
+                                                "physicalType": "String"
+                                            }
+                                        }
+                                    ],
+                                    "typeConversion": true,
+                                    "typeConversionSettings": {
+                                        "allowDataTruncation": true,
+                                        "treatBooleanAsNumber": false
+                                    }
+                                }
+                            },
+                            "inputs": [
+                                {
+                                    "referenceName": "AZDS_SNK_KIOSK",
+                                    "type": "DatasetReference",
+                                    "parameters": {
+                                        "container": {
+                                            "value": "@pipeline().parameters.KIOSK_Container",
+                                            "type": "Expression"
+                                        },
+                                        "tar_file": {
+                                            "value": "@concat(pipeline().parameters.KIOSK_Filename,'.csv')",
+                                            "type": "Expression"
+                                        },
+                                        "storageAccountName": {
+                                            "value": "@pipeline().parameters.KIOSK_storageAccount0094",
+                                            "type": "Expression"
+                                        },
+                                        "endpoint": {
+                                            "value": "@pipeline().parameters.KIOSK_endpoint",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                }
+                            ],
+                            "outputs": [
+                                {
+                                    "referenceName": "AZDS_SNK_GA",
+                                    "type": "DatasetReference",
+                                    "parameters": {
+                                        "container": {
+                                            "value": "@concat(pipeline().parameters.GA_Container\n,'/'\n,formatDateTime(convertFromUtc(utcNow(),'Eastern Standard Time'),'yyyyMMdd')\n)",
+                                            "type": "Expression"
+                                        },
+                                        "tar_filename": {
+                                            "value": "@concat(pipeline().parameters.GA_filename\n,'.csv.gz'\n)",
+                                            "type": "Expression"
+                                        },
+                                        "endpoint": {
+                                            "value": "@pipeline().parameters.GA_AME_Endpoint",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            },
+            {
+                "name": "If Condition APA Enable",
+                "type": "IfCondition",
+                "dependsOn": [],
+                "userProperties": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@or(\n equals(pipeline().parameters.GA_Endpoint_APA_Enabled,'yes')\n,equals(pipeline().parameters.GA_Endpoint_APA_Enabled,'y')\n)",
+                        "type": "Expression"
+                    },
+                    "ifTrueActivities": [
+                        {
+                            "name": "Copy data from KIOSK to GA-APA",
+                            "type": "Copy",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "7.00:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "source": {
+                                    "type": "DelimitedTextSource",
+                                    "storeSettings": {
+                                        "type": "AzureBlobStorageReadSettings",
+                                        "recursive": true,
+                                        "enablePartitionDiscovery": false
+                                    },
+                                    "formatSettings": {
+                                        "type": "DelimitedTextReadSettings"
+                                    }
+                                },
+                                "sink": {
+                                    "type": "DelimitedTextSink",
+                                    "storeSettings": {
+                                        "type": "AzureBlobStorageWriteSettings"
+                                    },
+                                    "formatSettings": {
+                                        "type": "DelimitedTextWriteSettings",
+                                        "quoteAllText": true,
+                                        "fileExtension": ".txt"
+                                    }
+                                },
+                                "enableStaging": false,
+                                "translator": {
+                                    "type": "TabularTranslator",
+                                    "mappings": [
+                                        {
+                                            "source": {
+                                                "name": "Business_ID",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Business_ID",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Business_Description",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Business_Description",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Sub_Function_ID",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Sub_Function_ID",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Sub_Function_Description",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Sub_Function_Description",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Service_Line_ID",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Service_Line_ID",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Service_Line_Description",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Service_Line_Description",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Geography_ID",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Geography_ID",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Geography_Description",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Geography_Description",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Member_Firm",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Member_Firm",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Member_Firm_Description",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Member_Firm_Description",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Value_Type",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Value_Type",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Value_Type_Desc",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Value_Type_Desc",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Fiscal_Year",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Fiscal_Year",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Fiscal_Period",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Fiscal_Period",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Fiscal_Period_Desc",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Fiscal_Period_Desc",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Levels",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Levels",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Hours",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Hours",
+                                                "physicalType": "String"
+                                            }
+                                        },
+                                        {
+                                            "source": {
+                                                "name": "Headcounts",
+                                                "physicalType": "String"
+                                            },
+                                            "sink": {
+                                                "name": "Headcounts",
+                                                "physicalType": "String"
+                                            }
+                                        }
+                                    ],
+                                    "typeConversion": true,
+                                    "typeConversionSettings": {
+                                        "allowDataTruncation": true,
+                                        "treatBooleanAsNumber": false
+                                    }
+                                }
+                            },
+                            "inputs": [
+                                {
+                                    "referenceName": "AZDS_SNK_KIOSK",
+                                    "type": "DatasetReference",
+                                    "parameters": {
+                                        "container": {
+                                            "value": "@pipeline().parameters.KIOSK_Container",
+                                            "type": "Expression"
+                                        },
+                                        "tar_file": {
+                                            "value": "@concat(pipeline().parameters.KIOSK_Filename,'.csv')",
+                                            "type": "Expression"
+                                        },
+                                        "storageAccountName": {
+                                            "value": "@pipeline().parameters.KIOSK_storageAccount0094",
+                                            "type": "Expression"
+                                        },
+                                        "endpoint": {
+                                            "value": "@pipeline().parameters.KIOSK_endpoint",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                }
+                            ],
+                            "outputs": [
+                                {
+                                    "referenceName": "AZDS_SNK_GA",
+                                    "type": "DatasetReference",
+                                    "parameters": {
+                                        "container": {
+                                            "value": "@concat(pipeline().parameters.GA_Container\n,'/'\n,formatDateTime(convertFromUtc(utcNow(),'Eastern Standard Time'),'yyyyMMdd')\n)",
+                                            "type": "Expression"
+                                        },
+                                        "tar_filename": {
+                                            "value": "@concat(pipeline().parameters.GA_filename\n,'.csv.gz'\n)",
+                                            "type": "Expression"
+                                        },
+                                        "endpoint": {
+                                            "value": "@pipeline().parameters.GA_APA_Endpoint",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            },
+            {
+                "name": "copy From global-audit Root to archive subdirectory",
+                "description": "copy From global-audit Root to archive subdirectory",
+                "type": "Copy",
+                "dependsOn": [
+                    {
+                        "activity": "If Condition valid archive directory exist or creat",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "source": {
+                        "type": "DelimitedTextSource",
+                        "storeSettings": {
+                            "type": "AzureBlobStorageReadSettings",
+                            "recursive": true,
+                            "enablePartitionDiscovery": false
+                        },
+                        "formatSettings": {
+                            "type": "DelimitedTextReadSettings"
+                        }
+                    },
+                    "sink": {
+                        "type": "DelimitedTextSink",
+                        "storeSettings": {
+                            "type": "AzureBlobStorageWriteSettings"
+                        },
+                        "formatSettings": {
+                            "type": "DelimitedTextWriteSettings",
+                            "quoteAllText": true,
+                            "fileExtension": ".txt"
+                        }
+                    },
+                    "enableStaging": false,
+                    "translator": {
+                        "type": "TabularTranslator",
+                        "mappings": [
+                            {
+                                "source": {
+                                    "name": "Business_ID"
+                                },
+                                "sink": {
+                                    "name": "Business_ID"
+                                }
+                            },
+                            {
+                                "source": {
+                                    "name": "Business_Description"
+                                },
+                                "sink": {
+                                    "name": "Business_Description"
+                                }
+                            },
+                            {
+                                "source": {
+                                    "name": "Sub_Function_ID"
+                                },
+                                "sink": {
+                                    "name": "Sub_Function_ID"
+                                }
+                            },
+                            {
+                                "source": {
+                                    "name": "Sub_Function_Description"
+                                },
+                                "sink": {
+                                    "name": "Sub_Function_Description"
+                                }
+                            },
+                            {
+                                "source": {
+                                    "name": "Service_Line_ID"
+                                },
+                                "sink": {
+                                    "name": "Service_Line_ID"
+                                }
+                            },
+                            {
+                                "source": {
+                                    "name": "Service_Line_Description"
+                                },
+                                "sink": {
+                                    "name": "Service_Line_Description"
+                                }
+                            },
+                            {
+                                "source": {
+                                    "name": "Geography_ID"
+                                },
+                                "sink": {
+                                    "name": "Geography_ID"
+                                }
+                            },
+                            {
+                                "source": {
+                                    "name": "Geography_Description"
+                                },
+                                "sink": {
+                                    "name": "Geography_Description"
+                                }
+                            },
+                            {
+                                "source": {
+                                    "name": "Member_Firm"
+                                },
+                                "sink": {
+                                    "name": "Member_Firm"
+                                }
+                            },
+                            {
+                                "source": {
+                                    "name": "Member_Firm_Description"
+                                },
+                                "sink": {
+                                    "name": "Member_Firm_Description"
+                                }
+                            },
+                            {
+                                "source": {
+                                    "name": "Value_Type"
+                                },
+                                "sink": {
+                                    "name": "Value_Type"
+                                }
+                            },
+                            {
+                                "source": {
+                                    "name": "Value_Type_Desc"
+                                },
+                                "sink": {
+                                    "name": "Value_Type_Desc"
+                                }
+                            },
+                            {
+                                "source": {
+                                    "name": "Fiscal_Year"
+                                },
+                                "sink": {
+                                    "name": "Fiscal_Year"
+                                }
+                            },
+                            {
+                                "source": {
+                                    "name": "Fiscal_Period"
+                                },
+                                "sink": {
+                                    "name": "Fiscal_Period"
+                                }
+                            },
+                            {
+                                "source": {
+                                    "name": "Fiscal_Period_Desc"
+                                },
+                                "sink": {
+                                    "name": "Fiscal_Period_Desc"
+                                }
+                            },
+                            {
+                                "source": {
+                                    "name": "Levels"
+                                },
+                                "sink": {
+                                    "name": "Levels"
+                                }
+                            },
+                            {
+                                "source": {
+                                    "name": "Hours"
+                                },
+                                "sink": {
+                                    "name": "Hours"
+                                }
+                            },
+                            {
+                                "source": {
+                                    "name": "Headcounts"
+                                },
+                                "sink": {
+                                    "name": "Headcounts"
+                                }
+                            }
+                        ]
+                    }
+                },
+                "inputs": [
+                    {
+                        "referenceName": "AZDS_SRC_KIOSK",
+                        "type": "DatasetReference",
+                        "parameters": {
+                            "container": {
+                                "value": "@pipeline().parameters.KIOSK_Container",
+                                "type": "Expression"
+                            },
+                            "tar_filename": {
+                                "value": "@{concat(\npipeline().parameters.KIOSK_Filename\n,'.csv'\n)}",
+                                "type": "Expression"
+                            },
+                            "storageAccountNmae": {
+                                "value": "@pipeline().parameters.KIOSK_storageAccount0094",
+                                "type": "Expression"
+                            },
+                            "endpoint": {
+                                "value": "@pipeline().parameters.KIOSK_endpoint",
+                                "type": "Expression"
+                            }
+                        }
+                    }
+                ],
+                "outputs": [
+                    {
+                        "referenceName": "AZDS_SNK_KIOSK",
+                        "type": "DatasetReference",
+                        "parameters": {
+                            "container": {
+                                "value": "@pipeline().parameters.KIOSK_Container",
+                                "type": "Expression"
+                            },
+                            "tar_file": {
+                                "value": "@concat(\npipeline().parameters.KIOSK_archivesDirectory\n,'/'\n,pipeline().parameters.KIOSK_Filename\n,'-'\n,formatDateTime(convertFromUtc(utcNow(),'Eastern Standard Time'),'yyyyMMdd-HHmm')\n,'.csv'\n)",
+                                "type": "Expression"
+                            },
+                            "storageAccountName": {
+                                "value": "@pipeline().parameters.KIOSK_storageAccount0094",
+                                "type": "Expression"
+                            },
+                            "endpoint": {
+                                "value": "@pipeline().parameters.KIOSK_endpoint",
+                                "type": "Expression"
+                            }
+                        }
+                    }
+                ]
+            },
+            {
+                "name": "Failure Notification EMA",
+                "type": "WebActivity",
+                "dependsOn": [
+                    {
+                        "activity": "If Condition EMA Enable",
+                        "dependencyConditions": [
+                            "Failed"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "url": {
+                        "value": "@pipeline().parameters.automation_endpoint",
+                        "type": "Expression"
+                    },
+                    "method": "POST",
+                    "body": {
+                        "value": "{\n    \"message\" : \"Hi there, \\nThe dumping to EMA failed.@{concat('\\nThanks,','\\n\\n',pipeline().DataFactory,  '\\n',formatDateTime(convertFromUtc(utcNow(),'Eastern Standard Time'),'yyyy-MM-dd hh:mmtt')    )}\",\n    \"to\": \"@{pipeline().parameters.receiver}\" ,\n    \"cc\": \"@{pipeline().parameters.cc}\" ,\n    \"bcc\": \"@{pipeline().parameters.bcc}\" ,\n    \"subject\" : \"No-Reply from Automation: The Data dumping to EMA failed.\"\n}",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "To EMA Failed",
+                "type": "Fail",
+                "dependsOn": [
+                    {
+                        "activity": "Failure Notification EMA",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "message": "To EMA Failed",
+                    "errorCode": "500"
+                }
+            },
+            {
+                "name": "Failure Notification APA",
+                "type": "WebActivity",
+                "dependsOn": [
+                    {
+                        "activity": "If Condition APA Enable",
+                        "dependencyConditions": [
+                            "Failed"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "url": {
+                        "value": "@pipeline().parameters.automation_endpoint",
+                        "type": "Expression"
+                    },
+                    "method": "POST",
+                    "body": {
+                        "value": "{\n    \"message\" : \"Hi there, \\nThe dumping to APA failed.@{concat('\\nThanks,','\\n\\n',pipeline().DataFactory,  '\\n',formatDateTime(convertFromUtc(utcNow(),'Eastern Standard Time'),'yyyy-MM-dd hh:mmtt')    )}\",\n    \"to\": \"@{pipeline().parameters.receiver}\" ,\n    \"cc\": \"@{pipeline().parameters.cc}\" ,\n    \"bcc\": \"@{pipeline().parameters.bcc}\" ,\n    \"subject\" : \"No-Reply from Automation: The dumping to APA failed.\"\n}",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "To APA Failed",
+                "type": "Fail",
+                "dependsOn": [
+                    {
+                        "activity": "Failure Notification APA",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "message": "To APA Failed",
+                    "errorCode": "500"
+                }
+            },
+            {
+                "name": "Failure Notification AME",
+                "type": "WebActivity",
+                "dependsOn": [
+                    {
+                        "activity": "If Condition AME Enable",
+                        "dependencyConditions": [
+                            "Failed"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "url": {
+                        "value": "@pipeline().parameters.automation_endpoint",
+                        "type": "Expression"
+                    },
+                    "method": "POST",
+                    "body": {
+                        "value": "{\n    \"message\" : \"Hi there, \\nThe dumping to AME failed.@{concat('\\nThanks,','\\n\\n',pipeline().DataFactory,  '\\n',formatDateTime(convertFromUtc(utcNow(),'Eastern Standard Time'),'yyyy-MM-dd hh:mmtt')    )}\",\n    \"to\": \"@{pipeline().parameters.receiver}\" ,\n    \"cc\": \"@{pipeline().parameters.cc}\" ,\n    \"bcc\": \"@{pipeline().parameters.bcc}\" ,\n    \"subject\" : \"No-Reply from Automation: The dumping to AME failed.\"\n}",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "To AME Failed",
+                "type": "Fail",
+                "dependsOn": [
+                    {
+                        "activity": "Failure Notification AME",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "message": "To AME Failed",
+                    "errorCode": "500"
+                }
+            },
+            {
+                "name": "Failure Notification Archive",
+                "type": "WebActivity",
+                "dependsOn": [
+                    {
+                        "activity": "copy From global-audit Root to archive subdirectory",
+                        "dependencyConditions": [
+                            "Failed"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "url": {
+                        "value": "@pipeline().parameters.automation_endpoint",
+                        "type": "Expression"
+                    },
+                    "method": "POST",
+                    "body": {
+                        "value": "{\n    \"message\" : \"Hi there, \\nThe dumping to archive failed.@{concat('\\nThanks,','\\n\\n',pipeline().DataFactory,  '\\n',formatDateTime(convertFromUtc(utcNow(),'Eastern Standard Time'),'yyyy-MM-dd hh:mmtt')    )}\",\n    \"to\": \"@{pipeline().parameters.receiver}\" ,\n    \"cc\": \"@{pipeline().parameters.cc}\" ,\n    \"bcc\": \"@{pipeline().parameters.bcc}\" ,\n    \"subject\" : \"No-Reply from Automation: The dumping to archive failed.\"\n}",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "To Archive Failed",
+                "type": "Fail",
+                "dependsOn": [
+                    {
+                        "activity": "Failure Notification Archive",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "message": "To Archive Failed",
+                    "errorCode": "500"
+                }
+            },
+            {
+                "name": "Failure Notification get meta",
+                "type": "WebActivity",
+                "dependsOn": [
+                    {
+                        "activity": "Matedata get filename under archive",
+                        "dependencyConditions": [
+                            "Failed"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "url": {
+                        "value": "@pipeline().parameters.automation_endpoint",
+                        "type": "Expression"
+                    },
+                    "method": "POST",
+                    "body": {
+                        "value": "{\n    \"message\" : \"Hi there, \\nThe getting archived files info failed.@{concat('\\nThanks,','\\n\\n',pipeline().DataFactory,  '\\n',formatDateTime(convertFromUtc(utcNow(),'Eastern Standard Time'),'yyyy-MM-dd hh:mmtt')    )}\",\n    \"to\": \"@{pipeline().parameters.receiver}\" ,\n    \"cc\": \"@{pipeline().parameters.cc}\" ,\n    \"bcc\": \"@{pipeline().parameters.bcc}\" ,\n    \"subject\" : \"No-Reply from Automation: The getting archived files info failed.\"\n}",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "get meta-data failed",
+                "type": "Fail",
+                "dependsOn": [
+                    {
+                        "activity": "Failure Notification get meta",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "message": "Get archive metadata failed",
+                    "errorCode": "500"
+                }
+            },
+            {
+                "name": "Failure Notification delete file",
+                "type": "WebActivity",
+                "dependsOn": [
+                    {
+                        "activity": "ForEach",
+                        "dependencyConditions": [
+                            "Failed"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "url": {
+                        "value": "@pipeline().parameters.automation_endpoint",
+                        "type": "Expression"
+                    },
+                    "method": "POST",
+                    "body": {
+                        "value": "{\n    \"message\" : \"Hi there, \\nThe deleteing file in archive failed.@{concat('\\nThanks,','\\n\\n',pipeline().DataFactory,  '\\n',formatDateTime(convertFromUtc(utcNow(),'Eastern Standard Time'),'yyyy-MM-dd hh:mmtt')    )}\",\n    \"to\": \"@{pipeline().parameters.receiver}\" ,\n    \"cc\": \"@{pipeline().parameters.cc}\" ,\n    \"bcc\": \"@{pipeline().parameters.bcc}\" ,\n    \"subject\" : \"No-Reply from Automation: The deleteing file in archive failed.\"\n}",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "Delete file failed",
+                "type": "Fail",
+                "dependsOn": [
+                    {
+                        "activity": "Failure Notification delete file",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "message": "Delete archive file failed",
+                    "errorCode": "500"
+                }
+            },
+            {
+                "name": "Success Notification",
+                "type": "WebActivity",
+                "dependsOn": [
+                    {
+                        "activity": "ForEach",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    },
+                    {
+                        "activity": "If Condition EMA Enable",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    },
+                    {
+                        "activity": "If Condition AME Enable",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    },
+                    {
+                        "activity": "If Condition APA Enable",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    },
+                    {
+                        "activity": "copy From global-audit Root to archive subdirectory",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "url": {
+                        "value": "@pipeline().parameters.automation_endpoint",
+                        "type": "Expression"
+                    },
+                    "method": "POST",
+                    "body": {
+                        "value": "{\n    \"message\" : \"Hi there, \\nThe dumping from HANA processing is completed; the data is stored in Blob.@{concat('\\n\\n  >> Row Count: ',pipeline().parameters.RowCount,'\\n  >> Total Hours: ',pipeline().parameters.Total_Hours,'\\n  >> Total Headercount: ',pipeline().parameters.Total_Headercount,'\\n  >> Total Client service headcount: ',pipeline().parameters.Total_Client_service_headcount,'\\n\\nThanks,','\\n\\n',pipeline().DataFactory,  '\\n',formatDateTime(convertFromUtc(utcNow(),'Eastern Standard Time'),'yyyy-MM-dd hh:mmtt')    )}\",\n    \"to\": \"@{pipeline().parameters.receiver}\" ,\n    \"cc\": \"@{pipeline().parameters.cc}\" ,\n    \"bcc\": \"@{pipeline().parameters.bcc}\" ,\n    \"subject\" : \"FY23 P1 - ER Extended Audit Report now available\"\n}",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "If Condition valid archive directory exist or creat",
+                "description": "Check the pull status file exist or not\nif not, create and initiating the 2 status var,\notherwise get Last pull record and current HANA data status",
+                "type": "IfCondition",
+                "dependsOn": [
+                    {
+                        "activity": "Get metadata of archive directive",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@activity('Get metadata of archive directive').output.exists\n",
+                        "type": "Expression"
+                    },
+                    "ifFalseActivities": [
+                        {
+                            "name": "Create archive directory",
+                            "type": "Copy",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "7.00:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "source": {
+                                    "type": "SapHanaSource",
+                                    "query": "Select P_VALUE-P_VALUE  as Placeholder\nFROM \"FIG_DS_SCHEMA\".\"FIG.FINSIGHTS::CONTROL_TABLE\" \nWHERE  P_NAME = 'Publish Load ID'",
+                                    "partitionOption": "None"
+                                },
+                                "sink": {
+                                    "type": "DelimitedTextSink",
+                                    "storeSettings": {
+                                        "type": "AzureBlobStorageWriteSettings"
+                                    },
+                                    "formatSettings": {
+                                        "type": "DelimitedTextWriteSettings",
+                                        "quoteAllText": true,
+                                        "fileExtension": ".txt"
+                                    }
+                                },
+                                "enableStaging": false,
+                                "translator": {
+                                    "type": "TabularTranslator",
+                                    "typeConversion": true,
+                                    "typeConversionSettings": {
+                                        "allowDataTruncation": true,
+                                        "treatBooleanAsNumber": false
+                                    }
+                                }
+                            },
+                            "inputs": [
+                                {
+                                    "referenceName": "AZDS_SRC_GFSAP",
+                                    "type": "DatasetReference"
+                                }
+                            ],
+                            "outputs": [
+                                {
+                                    "referenceName": "AZDS_SRC_KIOSK",
+                                    "type": "DatasetReference",
+                                    "parameters": {
+                                        "container": {
+                                            "value": "@concat(\npipeline().parameters.KIOSK_Container\n, '/'\n, pipeline().parameters.KIOSK_archivesDirectory\n)",
+                                            "type": "Expression"
+                                        },
+                                        "tar_filename": {
+                                            "value": "test.csv",
+                                            "type": "Expression"
+                                        },
+                                        "storageAccountNmae": {
+                                            "value": "@pipeline().parameters.KIOSK_storageAccount0094",
+                                            "type": "Expression"
+                                        },
+                                        "endpoint": {
+                                            "value": "@pipeline().parameters.KIOSK_endpoint",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            },
+            {
+                "name": "Get metadata of archive directive",
+                "description": "",
+                "type": "GetMetadata",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "dataset": {
+                        "referenceName": "AZDS_SNK_KIOSK_Directory",
+                        "type": "DatasetReference",
+                        "parameters": {
+                            "container": {
+                                "value": "@pipeline().parameters.KIOSK_Container",
+                                "type": "Expression"
+                            },
+                            "tar_file": {
+                                "value": "@pipeline().parameters.KIOSK_archivesDirectory",
+                                "type": "Expression"
+                            },
+                            "storageAccountName": {
+                                "value": "@pipeline().parameters.KIOSK_storageAccount0094",
+                                "type": "Expression"
+                            },
+                            "endpoint": {
+                                "value": "@pipeline().parameters.KIOSK_endpoint",
+                                "type": "Expression"
+                            }
+                        }
+                    },
+                    "fieldList": [
+                        "exists"
+                    ],
+                    "storeSettings": {
+                        "type": "AzureBlobStorageReadSettings",
+                        "recursive": true,
+                        "enablePartitionDiscovery": false
+                    },
+                    "formatSettings": {
+                        "type": "DelimitedTextReadSettings"
+                    }
+                }
+            },
+            {
+                "name": "Failure Notification get meta_copy1",
+                "type": "WebActivity",
+                "dependsOn": [
+                    {
+                        "activity": "Get metadata of archive directive",
+                        "dependencyConditions": [
+                            "Failed"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "url": {
+                        "value": "@pipeline().parameters.automation_endpoint",
+                        "type": "Expression"
+                    },
+                    "method": "POST",
+                    "body": {
+                        "value": "{\n    \"message\" : \"Hi there, \\nThe dumping to archive failed.@{concat('\\nThanks,','\\n\\n',pipeline().DataFactory,  '\\n',formatDateTime(convertFromUtc(utcNow(),'Eastern Standard Time'),'yyyy-MM-dd hh:mmtt')    )}\",\n    \"to\": \"@{pipeline().parameters.receiver}\" ,\n    \"cc\": \"@{pipeline().parameters.cc}\" ,\n    \"bcc\": \"@{pipeline().parameters.bcc}\" ,\n    \"subject\" : \"No-Reply from Automation: The Data dumping failed.\"\n}",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "get meta-data failed_archive directory",
+                "type": "Fail",
+                "dependsOn": [
+                    {
+                        "activity": "Failure Notification get meta_copy1",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "message": "Archive directory getmetadat failed",
+                    "errorCode": "500"
+                }
+            }
+        ],
+        "parameters": {
+            "GA_Container": {
+                "type": "string",
+                "defaultValue": "figdata"
+            },
+            "retention_days": {
+                "type": "int",
+                "defaultValue": 365
+            },
+            "receiver": {
+                "type": "string",
+                "defaultValue": "ajohnchuan@deloitte.ca"
+            },
+            "cc": {
+                "type": "string",
+                "defaultValue": "ajbrar@deloitte.ca"
+            },
+            "bcc": {
+                "type": "string",
+                "defaultValue": "erjchen@deloitte.ca"
+            },
+            "KIOSK_archivesDirectory": {
+                "type": "string",
+                "defaultValue": "archive"
+            },
+            "KIOSK_Filename": {
+                "type": "string",
+                "defaultValue": "KIOSK-GF-GA-FIG_Extract"
+            },
+            "KIOSK_Container": {
+                "type": "string",
+                "defaultValue": "global-audit"
+            },
+            "pull_Status": {
+                "type": "string",
+                "defaultValue": "KIOSK-GF-GA-P_VALUE.txt"
+            },
+            "KIOSK_endpoint": {
+                "type": "string",
+                "defaultValue": "https://app0094sqldev.blob.core.windows.net/"
+            },
+            "KIOSK_storageAccount0094": {
+                "type": "string",
+                "defaultValue": "app0094sqldev"
+            },
+            "GA_EMA_Endpoint": {
+                "type": "string",
+                "defaultValue": "https://derfigsaema.blob.core.windows.net"
+            },
+            "GA_AME_Endpoint": {
+                "type": "string",
+                "defaultValue": "https://derfigsaame.blob.core.windows.net"
+            },
+            "GA_APA_Endpoint": {
+                "type": "string",
+                "defaultValue": "https://derfigsaapa.blob.core.windows.net"
+            },
+            "GA_filename": {
+                "type": "string",
+                "defaultValue": "FIGExtract"
+            },
+            "GA_Endpoint_EMA_Enabled": {
+                "type": "string",
+                "defaultValue": "y"
+            },
+            "GA_Endpoint_AME_Enabled": {
+                "type": "string",
+                "defaultValue": "y"
+            },
+            "GA_Endpoint_APA_Enabled": {
+                "type": "string",
+                "defaultValue": "y"
+            },
+            "automation_endpoint": {
+                "type": "string",
+                "defaultValue": "https://ffe89918-a835-4f0c-9a68-6043d8b27017.webhook.we.azure-automation.net/webhooks?token=%2b9KMc34uibgt4JB5ENLxRW22aPqvJBzz9XdY1xuhlYA%3d"
+            },
+            "Skip_Check_for_Publish_Load_ID": {
+                "type": "string",
+                "defaultValue": "y"
+            },
+            "Disable_Data_Validation": {
+                "type": "string",
+                "defaultValue": "y"
+            },
+            "RowCount": {
+                "type": "string",
+                "defaultValue": "N/A"
+            },
+            "Total_Hours": {
+                "type": "string",
+                "defaultValue": "N/A"
+            },
+            "Total_Headercount": {
+                "type": "string",
+                "defaultValue": "N/A"
+            },
+            "Total_Client_service_headcount": {
+                "type": "string",
+                "defaultValue": "N/A"
+            }
+        },
+        "variables": {
+            "retention_days_nanosecond": {
+                "type": "String"
+            },
+            "var_today": {
+                "type": "String"
+            },
+            "var_item_monitor": {
+                "type": "String"
+            },
+            "LastPullStatus": {
+                "type": "String"
+            },
+            "CurrentDataStatus": {
+                "type": "String"
+            }
+        },
+        "folder": {
+            "name": "Extended_Reporting"
+        },
+        "annotations": []
+    }
+}

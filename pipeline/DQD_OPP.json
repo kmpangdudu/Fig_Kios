@@ -1,0 +1,59 @@
+{
+    "name": "DQD_OPP",
+    "properties": {
+        "activities": [
+            {
+                "name": "Execute SSIS package1",
+                "type": "ExecuteSSISPackage",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "packageLocation": {
+                        "packagePath": "\\\\app0094storagedev.file.core.windows.net\\dev-poc\\OPP_TechPack\\DQD\\GCICR_Data_Validation.dtsx",
+                        "type": "File",
+                        "typeProperties": {
+                            "accessCredential": {
+                                "domain": "Azure",
+                                "userName": "app0094storagedev",
+                                "password": {
+                                    "type": "SecureString",
+                                    "value": "**********"
+                                }
+                            },
+                            "configurationPath": "\\\\app0094storagedev.file.core.windows.net\\dev-poc\\OPP_TechPack\\DQD\\GCICR_Data_Validation.dtsconfig"
+                        }
+                    },
+                    "connectVia": {
+                        "referenceName": "app0094-Intergration-runtime-s2",
+                        "type": "IntegrationRuntimeReference"
+                    },
+                    "loggingLevel": "None",
+                    "logLocation": {
+                        "logPath": "\\\\app0094storagedev.file.core.windows.net\\dev-poc\\OPP_TechPack\\DQD",
+                        "type": "File",
+                        "typeProperties": {
+                            "accessCredential": {
+                                "domain": "Azure",
+                                "userName": "app0094storagedev",
+                                "password": {
+                                    "type": "SecureString",
+                                    "value": "**********"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        ],
+        "annotations": [],
+        "lastPublishTime": "2021-08-09T09:58:06Z"
+    },
+    "type": "Microsoft.DataFactory/factories/pipelines"
+}

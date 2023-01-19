@@ -1,0 +1,645 @@
+{
+    "name": "AZPL_GF_GA_FIG_Extract_L1Child",
+    "properties": {
+        "description": "In short:\n1) First delivery:\n  >file name:  KIOSK-GF-GA-FIG_Extract.csv.gz\n  >save to: app2145sqldev; \nunder sub-directory, named YYYYMMDD\n  >Format: csv\n  >Compress: GZip\n=========================\n2) Second delivery:\n >file name:  KIOSK-GF-GA-FIG_Extract.csv\n>save to: app0094sqldev\n at root directory\n>Format: csv, \n>Compress: No \n=========================\n3) Third Delivery:\n >file name:  KIOSK-GF-GA-FIG_Extract-YYYYMMDD-HHMM.csv\n>save to: app0094sqldev\n at sub-directory archive\n>Format: csv, \n>Compress: No \n=========================\nfor memory: \n#1105604 -> Destination & FileName\n#1123260 -> linked services\n#1080216 -> file Type & FileName\n#1080214 -> schema\n",
+        "activities": [
+            {
+                "name": "Failure Notification",
+                "type": "WebActivity",
+                "dependsOn": [
+                    {
+                        "activity": "Extract From HANA",
+                        "dependencyConditions": [
+                            "Failed"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "url": {
+                        "value": "@pipeline().parameters.automation_endpoint",
+                        "type": "Expression"
+                    },
+                    "method": "POST",
+                    "body": {
+                        "value": "{\n    \"message\" : \"Hi there, \\nThe dumping from HANA failed.@{concat('\\nThanks,','\\n\\n',pipeline().DataFactory,  '\\n',formatDateTime(convertFromUtc(utcNow(),'Eastern Standard Time'),'yyyy-MM-dd hh:mmtt')    )}\",\n    \"to\": \"@{pipeline().parameters.receiver}\" ,\n    \"cc\": \"@{pipeline().parameters.cc}\" ,\n    \"bcc\": \"@{pipeline().parameters.bcc}\" ,\n    \"subject\" : \"No-Reply from Automation: The Data dumping from HANA failed.\"\n}",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "Extract From HANA",
+                "description": "Directly query to extract from HANA;\nSink to App0094sqldev/global-audit ",
+                "type": "Copy",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "source": {
+                        "type": "SapHanaSource",
+                        "query": "--Version 4.5\n--\tUpdate column names\n--\t\tFIRM_ID  as Geography_ID\n--\t\tFIRM_DESC  as  Geography_Description  \n--\t\tGEOGRAPHY as Member_Firm\n--\t\tGEOGRAPHY_DESC as Member_Firm_Description\n--\tAdded where clause to filter NULLS in Levels \n--\t\twhere Levels is not NULL\n--Verion 4.3\n--\tUpdated control table entr: \"Financial Summary\" dashboard entry would be replaced with \"Extended Reporting\"\n\n--IMPORTANT POINTS FOR DEPLOYMENT\n\t--On Line 433, a where clause \"Fiscal_Year = 2022\" is added to prevent exposure of FY21 data to receiving side. (As per requested by Sid J.) \n\t--Line 433 to be taken off, when PY23 data becomes available in FIG-side, and control table has entry for FY23.\n\n\n\n--using different parameters than query in dev\nwith hours_Hana as \n(SELECT \n\t\t FUNCTION,\n\t\t FUNCTION_DESC,\n\t\t SRVC_LN_GRP,\n\t\t SRV_LN_GRP_ID_DESC,\n\t\t SERV_ID,\n\t\t SRVC_LN_DESC,\n\t\t CASE \n\t\t    WHEN SUB_CLUSTER IS NOT NULL \n\t\t\tTHEN SUB_CLUSTER \n\t\t\tELSE FIRM_ID \n\t\t END as FIRM_ID,\n\t\t CASE \n\t\t    WHEN SUB_CLUSTER IS NOT NULL \n\t\t\tTHEN SUB_CLUSTER_DESC \n\t\t\tELSE FIRM_DESC \n\t\t END AS FIRM_DESC,\n\t\t GEOGRAPHY,\n\t\t GEOGRAPHY_DESC,\n\t\t VTYPE,\n\t\t VALUE_TYPE_DESC,\n\t\t FYEAR,  \n\t\t FPER,\n\t\t FPER_DESC,\n\t\t FISCAL_YEAR_PER,\n\t\t FISCAL_YEAR_PER_DESC,\n\t\t ACCOUNT_ID,\n\t\t ACCOUNT_DESC,\t\t\t\t\t\t\n\t\t sum(QNTY) AS QNTY  \n FROM \"_SYS_BIC\".\"FIG.REPORTING.BI/CV_PL_RECON_RC\" \n  ('PLACEHOLDER' = ('$$IP_REP_CUR$$', 'USD'),\n   'PLACEHOLDER' = ('$$IP_VAL_PUB_INP$$', 'Validation'),\n   'PLACEHOLDER' = ('$$IP_EXCHANGE_TYPE$$', 'F'),  \n   'PLACEHOLDER' = ('$$IP_DB_IND$$', 'KA')) as a\n JOIN \"_SYS_BIC\".\"FIG.SHARED_OBJECTS/CV_DIM_VALUE_TYPE\" as b\n on B.VALUE_TYPE = A.VTYPE\n-- ACCOUNT IDS FOR HOURS DATA\n  WHERE ACCOUNT_ID IN ('4981','4982','4983','4984','4985','4986','4987','4988','4989') \n  AND FUNCTION = 10 \n  AND VTYPE in (10,50)\n  AND SERV_ID != 102010\n  AND FYEAR >= (SELECT \n\t\t\t\tFYEAR - 1\n \t\t\t\tFROM \"FIG_DS_SCHEMA\".\"FIG.FIGR_OVERHAUL::FIG_CTL_TBL.DASHBOARD\"\n\t\t\t\tWHERE VAL_PUB = 'Publish'\n\t\t\t\tAND DASHBOARD_NAME = 'Financial Summary')\nGROUP BY \t \n\t\t FUNCTION,\n\t\t FUNCTION_DESC,\n\t\t SRVC_LN_GRP,\n\t\t SRV_LN_GRP_ID_DESC,\n\t\t SERV_ID,\n\t\t SRVC_LN_DESC,\n\t\t CASE \n\t\t    WHEN SUB_CLUSTER IS NOT NULL \n\t\t\tTHEN SUB_CLUSTER \n\t\t\tELSE FIRM_ID \n\t\t END,\n\t\t CASE \n\t\t    WHEN SUB_CLUSTER IS NOT NULL \n\t\t\tTHEN SUB_CLUSTER_DESC \n\t\t\tELSE FIRM_DESC \n\t\t END,\n\t     GEOGRAPHY,\n\t     GEOGRAPHY_DESC,\n\t\t VTYPE,\n\t\t VALUE_TYPE_DESC,\n\t\t FYEAR,  \n\t\t FPER,\n\t\t FPER_DESC,\n\t\t FISCAL_YEAR_PER,\n\t\t FISCAL_YEAR_PER_DESC,\n\t\t ACCOUNT_ID,\n\t\t ACCOUNT_DESC\n\n),\n----------------------------------------\n-- hours_data\n----------------------------------------\nhours_data as (\nselect\n   FUNCTION  as Business_ID\n  ,FUNCTION_DESC  as Business_Description\n  ,SRVC_LN_GRP  as Sub_Function_ID\n  ,SRV_LN_GRP_ID_DESC   as Sub_Function_Description\n  ,SERV_ID as  Service_Line_ID\n  ,SRVC_LN_DESC  as Service_Line_Description\n  ,FIRM_ID  as Geography_ID\n  ,FIRM_DESC  as  Geography_Description  \n  ,GEOGRAPHY as Member_Firm\n  ,GEOGRAPHY_DESC as Member_Firm_Description\n  ,VTYPE as Value_Type\n  ,VALUE_TYPE_DESC as Value_Type_Desc\n  ,FYEAR  as Fiscal_Year\n  ,FPER as Fiscal_Period\n  ,FPER_DESC as Fiscal_Period_DESC\n  --,ACCOUNT_DESC as Levels\n  ,CASE\n\tWHEN ACCOUNT_ID='4984' THEN 'Senior Manager'\n\tWHEN ACCOUNT_ID='4987' THEN 'Staff'\n\tWHEN ACCOUNT_ID='4982' THEN 'Salaried Partner'\n\tWHEN ACCOUNT_ID='4988' THEN 'Analyst/Junior Staff'\n\tWHEN ACCOUNT_ID='4985' THEN 'Manager'\n\tWHEN ACCOUNT_ID='4983' THEN 'Director'\n\tWHEN ACCOUNT_ID='4986' THEN 'Senior Staff'\n\tWHEN ACCOUNT_ID='4981' THEN 'Partner'\n  END as Levels\n--  ,'Hours' as Measure_Type\n  ,QNTY AS HR_Quantity\n  ,NULL as HC_Quantity\n\n  from hours_Hana\n),\n---------------------------------------\n--  headcount_HANA \n---------------------------------------\nheadcount_HANA AS\n(\nSELECT \n\t\t FUNCTION,\n\t\t FUNCTION_DESC,\n\t\t SRVC_LN_GRP,\n\t\t SRV_LN_GRP_ID_DESC,\n\t\t SERV_ID,\n\t\t SRVC_LN_DESC,\n\t\t CASE \n\t\t    WHEN SUB_CLUSTER IS NOT NULL \n\t\t\tTHEN SUB_CLUSTER \n\t\t\tELSE FIRM_ID \n\t\t END AS FIRM_ID,\n\t\t CASE \n\t\t    WHEN SUB_CLUSTER IS NOT NULL \n\t\t\tTHEN SUB_CLUSTER_DESC \n\t\t\tELSE FIRM_DESC \n\t\t END AS FIRM_DESC,\n\t     GEOGRAPHY,\n\t     GEOGRAPHY_DESC,\n\t\t VTYPE,\n\t\t VALUE_TYPE_DESC,\n\t\t FYEAR,  \n\t\t FPER,\n\t\t FPER_DESC,\n\t\t FISCAL_YEAR_PER,\n\t\t FISCAL_YEAR_PER_DESC,\n\t\t ACCOUNT_ID,\n\t\t ACCOUNT_DESC,\n \t\t sum(QNTY) AS QNTY  \n FROM \"_SYS_BIC\".\"FIG.REPORTING.BI/CV_PL_RECON_RC\" \n  ('PLACEHOLDER' = ('$$IP_REP_CUR$$', 'USD'),\n   'PLACEHOLDER' = ('$$IP_VAL_PUB_INP$$', 'Validation'),\n   'PLACEHOLDER' = ('$$IP_EXCHANGE_TYPE$$', 'F'),  \n   'PLACEHOLDER' = ('$$IP_DB_IND$$', 'KA')) as a\n JOIN \"_SYS_BIC\".\"FIG.SHARED_OBJECTS/CV_DIM_VALUE_TYPE\" as b\n on B.VALUE_TYPE = A.VTYPE\n-- ACCOUNT IDS FOR HEADCOUNTS DATA\n  WHERE ACCOUNT_ID IN ('4902', '4914', '4907', '4904', '4906', '4933', '4934', '4935', '4946', '4947', '4948') \n  AND FUNCTION = 10 \n  AND VTYPE in (10,50)\n  AND SERV_ID != 102010\n  AND FYEAR >= (SELECT \n\t\t\t\tFYEAR - 1\n \t\t\t\tFROM \"FIG_DS_SCHEMA\".\"FIG.FIGR_OVERHAUL::FIG_CTL_TBL.DASHBOARD\"\n\t\t\t\tWHERE VAL_PUB = 'Publish'\n\t\t\t\tAND DASHBOARD_NAME = 'Financial Summary')\nGROUP By\n\t\t FUNCTION,\n\t\t FUNCTION_DESC,\n\t\t SRVC_LN_GRP,\n\t\t SRV_LN_GRP_ID_DESC,\n\t\t SERV_ID,\n\t\t SRVC_LN_DESC,\n\t\t CASE \n\t\t    WHEN SUB_CLUSTER IS NOT NULL \n\t\t\tTHEN SUB_CLUSTER \n\t\t\tELSE FIRM_ID \n\t\t END,\n\t\t CASE \n\t\t    WHEN SUB_CLUSTER IS NOT NULL \n\t\t\tTHEN SUB_CLUSTER_DESC \n\t\t\tELSE FIRM_DESC \n\t\t END,\n\t     GEOGRAPHY,\n\t     GEOGRAPHY_DESC,\n\t\t VTYPE,\n\t\t VALUE_TYPE_DESC,\n\t\t FYEAR,  \n\t\t FPER,\n\t\t FPER_DESC,\n\t\t FISCAL_YEAR_PER,\n\t\t FISCAL_YEAR_PER_DESC,\n\t\t ACCOUNT_ID,\n\t\t ACCOUNT_DESC\n),\n----------------------------------------\n--  headcount_data\n----------------------------------------\nheadcount_data as\n(\nselect\n   FUNCTION  as Business_ID\n  ,FUNCTION_DESC  as Business_Description\n  ,SRVC_LN_GRP  as Sub_Function_ID\n  ,SRV_LN_GRP_ID_DESC   as Sub_Function_Description\n  ,SERV_ID as  Service_Line_ID\n  ,SRVC_LN_DESC  as Service_Line_Description\n  ,FIRM_ID  as Geography_ID\n  ,FIRM_DESC  as  Geography_Description  \n  ,GEOGRAPHY as Member_Firm\n  ,GEOGRAPHY_DESC as Member_Firm_Description\n  ,VTYPE as Value_Type\n  ,VALUE_TYPE_DESC as Value_Type_Desc\n  ,FYEAR  as Fiscal_Year\n  ,FPER as Fiscal_Period\n  ,FPER_DESC as Fiscal_Period_DESC\n  ,CASE\n\t\tWHEN ACCOUNT_ID='4902' THEN 'Equity Partner'\n\t\tWHEN ACCOUNT_ID='4904' THEN 'Salaried Partner'\n\t\tWHEN ACCOUNT_ID='4906' THEN NULL\n\t\tWHEN ACCOUNT_ID='4907' THEN 'Equity Partner'\n\t\tWHEN ACCOUNT_ID='4914' THEN 'Equity Partner'\n\t\tWHEN ACCOUNT_ID='4933' THEN 'Director'\n\t\tWHEN ACCOUNT_ID='4934' THEN 'Senior Manager'\n\t\tWHEN ACCOUNT_ID='4935' THEN 'Manager'\n\t\tWHEN ACCOUNT_ID='4946' THEN 'Senior Staff'\n\t\tWHEN ACCOUNT_ID='4947' THEN 'Staff'\n\t\tWHEN ACCOUNT_ID='4948' THEN 'Analyst/Junior Staff'\n  END as Levels\n--  ,'HeadCount' as Measure_Type\n  ,NULL as HR_Quantity\n  ,QNTY AS HC_Quantity\n\n  from headcount_HANA \n),\n-----------------------------------------\n-- client_service_headcounts_Hana\n-----------------------------------------\nclient_service_headcounts_Hana AS\n(\nSELECT \n\t\t FUNCTION,\n\t\t FUNCTION_DESC,\n\t\t SRVC_LN_GRP,\n\t\t SRV_LN_GRP_ID_DESC,\n\t\t SERV_ID,\n\t\t SRVC_LN_DESC,\n\t\t CASE \n\t\t    WHEN SUB_CLUSTER IS NOT NULL \n\t\t\tTHEN SUB_CLUSTER \n\t\t\tELSE FIRM_ID \n\t\t END AS FIRM_ID,\n\t\t CASE \n\t\t    WHEN SUB_CLUSTER IS NOT NULL \n\t\t\tTHEN SUB_CLUSTER_DESC \n\t\t\tELSE FIRM_DESC \n\t\t END AS FIRM_DESC,\n\t     GEOGRAPHY,\n\t     GEOGRAPHY_DESC,\n\t\t VTYPE,\n\t\t VALUE_TYPE_DESC,\n\t\t FYEAR,  \n\t\t FPER,\n\t\t FPER_DESC,\n\t\t FISCAL_YEAR_PER,\n\t\t FISCAL_YEAR_PER_DESC,\n\t\t ACCOUNT_ID,\n\t\t ACCOUNT_DESC,\n \t\t sum(QNTY) AS QNTY  \n FROM \"_SYS_BIC\".\"FIG.REPORTING.BI/CV_PL_RECON_RC\" \n  ('PLACEHOLDER' = ('$$IP_REP_CUR$$', 'USD'),\n   'PLACEHOLDER' = ('$$IP_VAL_PUB_INP$$', 'Validation'),\n   'PLACEHOLDER' = ('$$IP_EXCHANGE_TYPE$$', 'F'),  \n   'PLACEHOLDER' = ('$$IP_DB_IND$$', 'KA')) as a\n JOIN \"_SYS_BIC\".\"FIG.SHARED_OBJECTS/CV_DIM_VALUE_TYPE\" as b\n on B.VALUE_TYPE = A.VTYPE\n-- ACCOUNT IDS FOR HEADCOUNTS DATA\n  WHERE ACCOUNT_ID IN ('4902', '4914', '4907', '4904', '4906', '4933', '4934', '4935', '4946', '4947', '4948')\n  AND FUNCTION = 10 \n  AND VTYPE in (10,50)\n  AND SERV_ID != 102010\n  AND FYEAR >= (SELECT \n\t\t\t\tFYEAR - 1\n \t\t\t\tFROM \"FIG_DS_SCHEMA\".\"FIG.FIGR_OVERHAUL::FIG_CTL_TBL.DASHBOARD\"\n\t\t\t\tWHERE VAL_PUB = 'Publish'\n\t\t\t\tAND DASHBOARD_NAME = 'Financial Summary')\nGROUP By\n\t\t FUNCTION,\n\t\t FUNCTION_DESC,\n\t\t SRVC_LN_GRP,\n\t\t SRV_LN_GRP_ID_DESC,\n\t\t SERV_ID,\n\t\t SRVC_LN_DESC,\n\t\t CASE \n\t\t    WHEN SUB_CLUSTER IS NOT NULL \n\t\t\tTHEN SUB_CLUSTER \n\t\t\tELSE FIRM_ID \n\t\t END,\n\t\t CASE \n\t\t    WHEN SUB_CLUSTER IS NOT NULL \n\t\t\tTHEN SUB_CLUSTER_DESC \n\t\t\tELSE FIRM_DESC \n\t\t END,\n\t     GEOGRAPHY,\n\t     GEOGRAPHY_DESC,\n\t\t VTYPE,\n\t\t VALUE_TYPE_DESC,\n\t\t FYEAR,  \n\t\t FPER,\n\t\t FPER_DESC,\n\t\t FISCAL_YEAR_PER,\n\t\t FISCAL_YEAR_PER_DESC,\n\t\t ACCOUNT_ID,\n\t\t ACCOUNT_DESC\n),\n----------------------------------------\n-- client_service_headcounts\n----------------------------------------\nclient_service_headcounts as\n(\nselect\n   FUNCTION  as Business_ID\n  ,FUNCTION_DESC  as Business_Description\n  ,SRVC_LN_GRP  as Sub_Function_ID\n  ,SRV_LN_GRP_ID_DESC   as Sub_Function_Description\n  ,SERV_ID as  Service_Line_ID\n  ,SRVC_LN_DESC  as Service_Line_Description\n  ,FIRM_ID  as Geography_ID\n  ,FIRM_DESC  as  Geography_Description  \n  ,GEOGRAPHY as Member_Firm\n  ,GEOGRAPHY_DESC as Member_Firm_Description\n  ,VTYPE as Value_Type\n  ,VALUE_TYPE_DESC as Value_Type_Desc\n  ,FYEAR  as Fiscal_Year\n  ,FPER as Fiscal_Period\n  ,FPER_DESC as Fiscal_Period_DESC\n  ,CASE\n\tWHEN ACCOUNT_ID='4902' THEN 'Client Service Headcounts'\n\tWHEN ACCOUNT_ID='4904' THEN 'Client Service Headcounts'\n\tWHEN ACCOUNT_ID='4906' THEN 'Client Service Headcounts'\n\tWHEN ACCOUNT_ID='4907' THEN NULL\n\tWHEN ACCOUNT_ID='4914' THEN 'Client Service Headcounts'\n\tWHEN ACCOUNT_ID='4933' THEN 'Client Service Headcounts'\n\tWHEN ACCOUNT_ID='4934' THEN 'Client Service Headcounts'\n\tWHEN ACCOUNT_ID='4935' THEN 'Client Service Headcounts'\n\tWHEN ACCOUNT_ID='4946' THEN 'Client Service Headcounts'\n\tWHEN ACCOUNT_ID='4947' THEN 'Client Service Headcounts'\n\tWHEN ACCOUNT_ID='4948' THEN 'Client Service Headcounts'\n  END as Levels\n--  ,'HeadCount' as Measure_Type\n  ,NULL as HR_Quantity\n  ,QNTY AS HC_Quantity\n\n  from client_service_headcounts_Hana\n),\n-------------------------------------\n-- blended\n-------------------------------------\nblended as (\nselect \n\t*\nfrom hours_data\nunion ALL\nselect \n\t*\nfrom headcount_data\nunion ALL\nselect \n\t*\nfrom client_service_headcounts\n),\n-------------------------------------\n--  processed\n-------------------------------------\nprocessed as (\nselect\n   Business_ID\n  ,Business_Description\n  ,Sub_Function_ID\n  ,Sub_Function_Description\n  ,Service_Line_ID\n  ,Service_Line_Description\n  ,Geography_ID\n  ,Geography_Description  \n  ,Member_Firm\n  ,Member_Firm_Description\n  ,Value_Type\n  ,Value_Type_Desc\n  ,Fiscal_Year\n  ,Fiscal_Period\n  ,Fiscal_Period_DESC\n  ,Levels\n  ,\tCASE \n\t\tWHEN Levels='Analyst/Junior Staff' THEN 1\n\t    WHEN Levels='Director' THEN 2\n\t\tWHEN Levels='Equity Partner' THEN 3\n\t\tWHEN Levels='Manager' THEN 4\n\t\tWHEN Levels='Partner' THEN 5\n\t\tWHEN Levels='Salaried Partner' THEN 6\n\t\tWHEN Levels='Senior Manager' THEN 7\n\t\tWHEN Levels='Senior Staff' THEN 8\n\t\tWHEN Levels='Staff' THEN 9\n\t\tWHEN Levels='Client Service Headcounts' THEN 10\n\tEND AS col_order\n  ,SUM(HR_Quantity) as Hours \n  ,SUM(HC_Quantity) as Headcounts\nfrom blended\ngroup by   Business_ID\n  ,Business_Description\n  ,Sub_Function_ID\n  ,Sub_Function_Description\n  ,Service_Line_ID\n  ,Service_Line_Description\n  ,Geography_ID\n  ,Geography_Description  \n  ,Member_Firm\n  ,Member_Firm_Description\n  ,Value_Type\n  ,Value_Type_Desc\n  ,Fiscal_Year\n  ,Fiscal_Period\n  ,Fiscal_Period_DESC\n  ,Levels\n)\n------------------------------\n-- Main \n------------------------------\nselect \n   Business_ID\n  ,Business_Description\n  ,Sub_Function_ID\n  ,Sub_Function_Description\n  ,Service_Line_ID\n  ,Service_Line_Description\n  ,Geography_ID\n  ,Geography_Description  \n  ,Member_Firm\n  ,Member_Firm_Description\n  ,Value_Type\n  ,Value_Type_Desc\n  ,Fiscal_Year\n  ,Fiscal_Period\n  ,Fiscal_Period_DESC\n  ,CASE\n\tWHEN Levels='Client Service Headcounts' THEN 'Total Client Service Headcounts'\n\tELSE Levels\n  END as Levels\n  ,Hours \n  ,Headcounts\nfrom processed\nwhere Levels is not NULL\nand Fiscal_Year >= 2022\norder by   Business_ID\n  ,Business_Description\n  ,Sub_Function_ID\n  ,Sub_Function_Description\n  ,Service_Line_ID\n  ,Service_Line_Description\n  ,Geography_ID\n  ,Geography_Description  \n  ,Member_Firm\n  ,Member_Firm_Description\n  ,Value_Type\n  ,Value_Type_Desc\n  ,Fiscal_Year\n  ,Fiscal_Period\n  ,Fiscal_Period_DESC\n  ,col_order\n\n/*\nselect \n\tDISTINCT\n\t\tFiscal_Year,\n\t\tMember_Firm_ID,\n\t\tMember_firms_Description\nfrom processed\norder by 1, 3\n*/",
+                        "partitionOption": "None"
+                    },
+                    "sink": {
+                        "type": "DelimitedTextSink",
+                        "storeSettings": {
+                            "type": "AzureBlobStorageWriteSettings"
+                        },
+                        "formatSettings": {
+                            "type": "DelimitedTextWriteSettings",
+                            "quoteAllText": true,
+                            "fileExtension": ".txt"
+                        }
+                    },
+                    "enableStaging": false,
+                    "translator": {
+                        "type": "TabularTranslator",
+                        "mappings": [
+                            {
+                                "source": {
+                                    "name": "BUSINESS_ID",
+                                    "type": "String"
+                                },
+                                "sink": {
+                                    "name": "Business_ID"
+                                }
+                            },
+                            {
+                                "source": {
+                                    "name": "BUSINESS_DESCRIPTION",
+                                    "type": "String"
+                                },
+                                "sink": {
+                                    "name": "Business_Description"
+                                }
+                            },
+                            {
+                                "source": {
+                                    "name": "SUB_FUNCTION_ID",
+                                    "type": "String"
+                                },
+                                "sink": {
+                                    "name": "Sub_Function_ID"
+                                }
+                            },
+                            {
+                                "source": {
+                                    "name": "SUB_FUNCTION_DESCRIPTION",
+                                    "type": "String"
+                                },
+                                "sink": {
+                                    "name": "Sub_Function_Description"
+                                }
+                            },
+                            {
+                                "source": {
+                                    "name": "SERVICE_LINE_ID",
+                                    "type": "String"
+                                },
+                                "sink": {
+                                    "name": "Service_Line_ID"
+                                }
+                            },
+                            {
+                                "source": {
+                                    "name": "SERVICE_LINE_DESCRIPTION",
+                                    "type": "String"
+                                },
+                                "sink": {
+                                    "name": "Service_Line_Description"
+                                }
+                            },
+                            {
+                                "source": {
+                                    "name": "GEOGRAPHY_ID",
+                                    "type": "String"
+                                },
+                                "sink": {
+                                    "name": "Geography_ID"
+                                }
+                            },
+                            {
+                                "source": {
+                                    "name": "GEOGRAPHY_DESCRIPTION",
+                                    "type": "String"
+                                },
+                                "sink": {
+                                    "name": "Geography_Description"
+                                }
+                            },
+                            {
+                                "source": {
+                                    "name": "MEMBER_FIRM",
+                                    "type": "String"
+                                },
+                                "sink": {
+                                    "name": "Member_Firm"
+                                }
+                            },
+                            {
+                                "source": {
+                                    "name": "MEMBER_FIRM_DESCRIPTION",
+                                    "type": "String"
+                                },
+                                "sink": {
+                                    "name": "Member_Firm_Description"
+                                }
+                            },
+                            {
+                                "source": {
+                                    "name": "VALUE_TYPE",
+                                    "type": "String"
+                                },
+                                "sink": {
+                                    "name": "Value_Type"
+                                }
+                            },
+                            {
+                                "source": {
+                                    "name": "VALUE_TYPE_DESC",
+                                    "type": "String"
+                                },
+                                "sink": {
+                                    "name": "Value_Type_Desc"
+                                }
+                            },
+                            {
+                                "source": {
+                                    "name": "FISCAL_YEAR",
+                                    "type": "Int32"
+                                },
+                                "sink": {
+                                    "name": "Fiscal_Year"
+                                }
+                            },
+                            {
+                                "source": {
+                                    "name": "FISCAL_PERIOD",
+                                    "type": "Int32"
+                                },
+                                "sink": {
+                                    "name": "Fiscal_Period"
+                                }
+                            },
+                            {
+                                "source": {
+                                    "name": "FISCAL_PERIOD_DESC",
+                                    "type": "String"
+                                },
+                                "sink": {
+                                    "name": "Fiscal_Period_Desc"
+                                }
+                            },
+                            {
+                                "source": {
+                                    "name": "LEVELS",
+                                    "type": "String"
+                                },
+                                "sink": {
+                                    "name": "Levels"
+                                }
+                            },
+                            {
+                                "source": {
+                                    "name": "HOURS",
+                                    "type": "Double"
+                                },
+                                "sink": {
+                                    "name": "Hours"
+                                }
+                            },
+                            {
+                                "source": {
+                                    "name": "HEADCOUNTS",
+                                    "type": "Double"
+                                },
+                                "sink": {
+                                    "name": "Headcounts"
+                                }
+                            }
+                        ]
+                    }
+                },
+                "inputs": [
+                    {
+                        "referenceName": "AZDS_SRC_GFSAP",
+                        "type": "DatasetReference"
+                    }
+                ],
+                "outputs": [
+                    {
+                        "referenceName": "AZDS_SNK_KIOSK_FileStru",
+                        "type": "DatasetReference",
+                        "parameters": {
+                            "container": {
+                                "value": "@pipeline().parameters.KIOSK_Container",
+                                "type": "Expression"
+                            },
+                            "tar_file": {
+                                "value": "@concat(pipeline().parameters.KIOSK_Filename,'.csv')",
+                                "type": "Expression"
+                            },
+                            "storageAccountName": {
+                                "value": "@pipeline().parameters.KIOSK_storageAccount0094",
+                                "type": "Expression"
+                            },
+                            "endpoint": {
+                                "value": "@pipeline().parameters.KIOSK_endpoint",
+                                "type": "Expression"
+                            }
+                        }
+                    }
+                ]
+            },
+            {
+                "name": "Extract HANA failed",
+                "type": "Fail",
+                "dependsOn": [
+                    {
+                        "activity": "Failure Notification",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "message": "Extract HANA failed",
+                    "errorCode": "500"
+                }
+            },
+            {
+                "name": "If Condition disable auditing",
+                "type": "IfCondition",
+                "dependsOn": [
+                    {
+                        "activity": "Set variable rowsCopied",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@or(\r\n equals(pipeline().parameters.Disable_Data_Validation, 'yes')\r\n, equals(pipeline().parameters.Disable_Data_Validation, 'y')\r\n)\r\n ",
+                        "type": "Expression"
+                    },
+                    "ifFalseActivities": [
+                        {
+                            "name": "Execute auditing",
+                            "type": "ExecutePipeline",
+                            "dependsOn": [],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "pipeline": {
+                                    "referenceName": "AZPL_GF_GA_FIG_Extract_L1Auditing_Child",
+                                    "type": "PipelineReference"
+                                },
+                                "waitOnCompletion": true,
+                                "parameters": {
+                                    "KIOSK_Container": {
+                                        "value": "@pipeline().parameters.KIOSK_Container",
+                                        "type": "Expression"
+                                    },
+                                    "KIOSK_endpoint": {
+                                        "value": "@pipeline().parameters.KIOSK_endpoint",
+                                        "type": "Expression"
+                                    },
+                                    "KIOSK_Filename": {
+                                        "value": "@pipeline().parameters.KIOSK_Filename",
+                                        "type": "Expression"
+                                    },
+                                    "KIOSK_RowCopied": {
+                                        "value": "@variables('rowsCopied')",
+                                        "type": "Expression"
+                                    },
+                                    "automation_endpoint": {
+                                        "value": "@pipeline().parameters.automation_endpoint",
+                                        "type": "Expression"
+                                    },
+                                    "receiver": {
+                                        "value": "@pipeline().parameters.receiver",
+                                        "type": "Expression"
+                                    },
+                                    "cc": {
+                                        "value": "@pipeline().parameters.cc",
+                                        "type": "Expression"
+                                    },
+                                    "bcc": {
+                                        "value": "@pipeline().parameters.bcc",
+                                        "type": "Expression"
+                                    },
+                                    "GA_Container": {
+                                        "value": "@pipeline().parameters.GA_Container",
+                                        "type": "Expression"
+                                    },
+                                    "retention_days": {
+                                        "value": "@pipeline().parameters.retention_days",
+                                        "type": "Expression"
+                                    },
+                                    "KIOSK_archivesDirectory": {
+                                        "value": "@pipeline().parameters.KIOSK_archivesDirectory",
+                                        "type": "Expression"
+                                    },
+                                    "pull_Status": {
+                                        "value": "@pipeline().parameters.pull_Status",
+                                        "type": "Expression"
+                                    },
+                                    "KIOSK_storageAccount0094": {
+                                        "value": "@pipeline().parameters.KIOSK_storageAccount0094",
+                                        "type": "Expression"
+                                    },
+                                    "GA_EMA_Endpoint": {
+                                        "value": "@pipeline().parameters.GA_EMA_Endpoint",
+                                        "type": "Expression"
+                                    },
+                                    "GA_AME_Endpoint": {
+                                        "value": "@pipeline().parameters.GA_AME_Endpoint",
+                                        "type": "Expression"
+                                    },
+                                    "GA_APA_Endpoint": {
+                                        "value": "@pipeline().parameters.GA_APA_Endpoint",
+                                        "type": "Expression"
+                                    },
+                                    "GA_filename": {
+                                        "value": "@pipeline().parameters.GA_filename",
+                                        "type": "Expression"
+                                    },
+                                    "GA_Endpoint_EMA_Enabled": {
+                                        "value": "@pipeline().parameters.GA_Endpoint_EMA_Enabled",
+                                        "type": "Expression"
+                                    },
+                                    "GA_Endpoint_AME_Enabled": {
+                                        "value": "@pipeline().parameters.GA_Endpoint_AME_Enabled",
+                                        "type": "Expression"
+                                    },
+                                    "GA_Endpoint_APA_Enabled": {
+                                        "value": "@pipeline().parameters.GA_Endpoint_APA_Enabled",
+                                        "type": "Expression"
+                                    },
+                                    "Skip_Check_for_Publish_Load_ID": {
+                                        "value": "@pipeline().parameters.Skip_Check_for_Publish_Load_ID",
+                                        "type": "Expression"
+                                    },
+                                    "Disable_Data_Validation": {
+                                        "value": "@pipeline().parameters.Disable_Data_Validation",
+                                        "type": "Expression"
+                                    }
+                                }
+                            }
+                        }
+                    ],
+                    "ifTrueActivities": [
+                        {
+                            "name": "directly copy data",
+                            "type": "ExecutePipeline",
+                            "dependsOn": [],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "pipeline": {
+                                    "referenceName": "AZPL_GF_GA_FIG_Extract_L0Child",
+                                    "type": "PipelineReference"
+                                },
+                                "waitOnCompletion": true,
+                                "parameters": {
+                                    "GA_Container": {
+                                        "value": "@pipeline().parameters.GA_Container",
+                                        "type": "Expression"
+                                    },
+                                    "retention_days": {
+                                        "value": "@pipeline().parameters.retention_days",
+                                        "type": "Expression"
+                                    },
+                                    "receiver": {
+                                        "value": "@pipeline().parameters.receiver",
+                                        "type": "Expression"
+                                    },
+                                    "cc": {
+                                        "value": "@pipeline().parameters.cc",
+                                        "type": "Expression"
+                                    },
+                                    "bcc": {
+                                        "value": "@pipeline().parameters.bcc",
+                                        "type": "Expression"
+                                    },
+                                    "KIOSK_archivesDirectory": {
+                                        "value": "@pipeline().parameters.KIOSK_archivesDirectory",
+                                        "type": "Expression"
+                                    },
+                                    "KIOSK_Filename": {
+                                        "value": "@pipeline().parameters.KIOSK_Filename",
+                                        "type": "Expression"
+                                    },
+                                    "KIOSK_Container": {
+                                        "value": "@pipeline().parameters.KIOSK_Container",
+                                        "type": "Expression"
+                                    },
+                                    "pull_Status": {
+                                        "value": "@pipeline().parameters.pull_Status",
+                                        "type": "Expression"
+                                    },
+                                    "KIOSK_endpoint": {
+                                        "value": "@pipeline().parameters.KIOSK_endpoint",
+                                        "type": "Expression"
+                                    },
+                                    "KIOSK_storageAccount0094": {
+                                        "value": "@pipeline().parameters.KIOSK_storageAccount0094",
+                                        "type": "Expression"
+                                    },
+                                    "GA_EMA_Endpoint": {
+                                        "value": "@pipeline().parameters.GA_EMA_Endpoint",
+                                        "type": "Expression"
+                                    },
+                                    "GA_AME_Endpoint": {
+                                        "value": "@pipeline().parameters.GA_AME_Endpoint",
+                                        "type": "Expression"
+                                    },
+                                    "GA_APA_Endpoint": {
+                                        "value": "@pipeline().parameters.GA_APA_Endpoint",
+                                        "type": "Expression"
+                                    },
+                                    "GA_filename": {
+                                        "value": "@pipeline().parameters.GA_filename",
+                                        "type": "Expression"
+                                    },
+                                    "GA_Endpoint_EMA_Enabled": {
+                                        "value": "@pipeline().parameters.GA_Endpoint_EMA_Enabled",
+                                        "type": "Expression"
+                                    },
+                                    "GA_Endpoint_AME_Enabled": {
+                                        "value": "@pipeline().parameters.GA_Endpoint_AME_Enabled",
+                                        "type": "Expression"
+                                    },
+                                    "GA_Endpoint_APA_Enabled": {
+                                        "value": "@pipeline().parameters.GA_Endpoint_APA_Enabled",
+                                        "type": "Expression"
+                                    },
+                                    "automation_endpoint": {
+                                        "value": "@pipeline().parameters.automation_endpoint",
+                                        "type": "Expression"
+                                    },
+                                    "Skip_Check_for_Publish_Load_ID": {
+                                        "value": "@pipeline().parameters.Skip_Check_for_Publish_Load_ID",
+                                        "type": "Expression"
+                                    },
+                                    "Disable_Data_Validation": {
+                                        "value": "@pipeline().parameters.Disable_Data_Validation",
+                                        "type": "Expression"
+                                    },
+                                    "RowCount": "N/A",
+                                    "Total_Hours": "N/A",
+                                    "Total_Headercount": "N/A",
+                                    "Total_Client_service_headcount": "N/A"
+                                }
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "name": "Set variable rowsCopied",
+                "type": "SetVariable",
+                "dependsOn": [
+                    {
+                        "activity": "Extract From HANA",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "rowsCopied",
+                    "value": {
+                        "value": "@string( activity('Extract From HANA').output.rowsCopied)",
+                        "type": "Expression"
+                    }
+                }
+            }
+        ],
+        "parameters": {
+            "GA_Container": {
+                "type": "string",
+                "defaultValue": "figdata"
+            },
+            "retention_days": {
+                "type": "int",
+                "defaultValue": 365
+            },
+            "receiver": {
+                "type": "string",
+                "defaultValue": "ajohnchuan@deloitte.ca"
+            },
+            "cc": {
+                "type": "string",
+                "defaultValue": "ajbrar@deloitte.ca"
+            },
+            "bcc": {
+                "type": "string",
+                "defaultValue": "erjchen@deloitte.ca"
+            },
+            "KIOSK_archivesDirectory": {
+                "type": "string",
+                "defaultValue": "archive"
+            },
+            "KIOSK_Filename": {
+                "type": "string",
+                "defaultValue": "KIOSK-GF-GA-FIG_Extract"
+            },
+            "KIOSK_Container": {
+                "type": "string",
+                "defaultValue": "global-audit"
+            },
+            "pull_Status": {
+                "type": "string",
+                "defaultValue": "KIOSK-GF-GA-P_VALUE.txt"
+            },
+            "KIOSK_endpoint": {
+                "type": "string",
+                "defaultValue": "https://app0094sqldev.blob.core.windows.net/"
+            },
+            "KIOSK_storageAccount0094": {
+                "type": "string",
+                "defaultValue": "app0094sqldev"
+            },
+            "GA_EMA_Endpoint": {
+                "type": "string",
+                "defaultValue": "https://derfigsaema.blob.core.windows.net"
+            },
+            "GA_AME_Endpoint": {
+                "type": "string",
+                "defaultValue": "https://derfigsaame.blob.core.windows.net"
+            },
+            "GA_APA_Endpoint": {
+                "type": "string",
+                "defaultValue": "https://derfigsaapa.blob.core.windows.net"
+            },
+            "GA_filename": {
+                "type": "string",
+                "defaultValue": "FIGExtract"
+            },
+            "GA_Endpoint_EMA_Enabled": {
+                "type": "string",
+                "defaultValue": "y"
+            },
+            "GA_Endpoint_AME_Enabled": {
+                "type": "string",
+                "defaultValue": "y"
+            },
+            "GA_Endpoint_APA_Enabled": {
+                "type": "string",
+                "defaultValue": "y"
+            },
+            "automation_endpoint": {
+                "type": "string",
+                "defaultValue": "https://ffe89918-a835-4f0c-9a68-6043d8b27017.webhook.we.azure-automation.net/webhooks?token=%2b9KMc34uibgt4JB5ENLxRW22aPqvJBzz9XdY1xuhlYA%3d"
+            },
+            "Skip_Check_for_Publish_Load_ID": {
+                "type": "string",
+                "defaultValue": "y"
+            },
+            "Disable_Data_Validation": {
+                "type": "string",
+                "defaultValue": "y"
+            }
+        },
+        "variables": {
+            "retention_days_nanosecond": {
+                "type": "String"
+            },
+            "var_today": {
+                "type": "String"
+            },
+            "var_item_monitor": {
+                "type": "String"
+            },
+            "LastPullStatus": {
+                "type": "String"
+            },
+            "CurrentDataStatus": {
+                "type": "String"
+            },
+            "rowsCopied": {
+                "type": "String"
+            }
+        },
+        "folder": {
+            "name": "Extended_Reporting"
+        },
+        "annotations": []
+    }
+}

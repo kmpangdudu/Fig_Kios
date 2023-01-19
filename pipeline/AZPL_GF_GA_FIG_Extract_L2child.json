@@ -1,0 +1,629 @@
+{
+    "name": "AZPL_GF_GA_FIG_Extract_L2child",
+    "properties": {
+        "description": "In short:\n1) First delivery:\n  >file name:  KIOSK-GF-GA-FIG_Extract.csv.gz\n  >save to: app2145sqldev; \nunder sub-directory, named YYYYMMDD\n  >Format: csv\n  >Compress: GZip\n=========================\n2) Second delivery:\n >file name:  KIOSK-GF-GA-FIG_Extract.csv\n>save to: app0094sqldev\n at root directory\n>Format: csv, \n>Compress: No \n=========================\n3) Third Delivery:\n >file name:  KIOSK-GF-GA-FIG_Extract-YYYYMMDD-HHMM.csv\n>save to: app0094sqldev\n at sub-directory archive\n>Format: csv, \n>Compress: No \n=========================\nfor memory: \n#1105604 -> Destination & FileName\n#1123260 -> linked services\n#1080216 -> file Type & FileName\n#1080214 -> schema\n",
+        "activities": [
+            {
+                "name": "If Condition_valid_PullStatusFile exist or creat",
+                "description": "Check the pull status file exist or not\nif not, create and initiating the 2 status var,\notherwise get Last pull record and current HANA data status",
+                "type": "IfCondition",
+                "dependsOn": [
+                    {
+                        "activity": "Get metadata of Pull status file",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@activity('Get metadata of Pull status file').output.exists",
+                        "type": "Expression"
+                    },
+                    "ifFalseActivities": [
+                        {
+                            "name": "Create pull status file",
+                            "type": "Copy",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "7.00:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "source": {
+                                    "type": "SapHanaSource",
+                                    "query": "Select P_VALUE-P_VALUE  as P_VALUE\nFROM \"FIG_DS_SCHEMA\".\"FIG.FINSIGHTS::CONTROL_TABLE\" \nWHERE  P_NAME = 'Publish Load ID'",
+                                    "partitionOption": "None"
+                                },
+                                "sink": {
+                                    "type": "DelimitedTextSink",
+                                    "storeSettings": {
+                                        "type": "AzureBlobStorageWriteSettings"
+                                    },
+                                    "formatSettings": {
+                                        "type": "DelimitedTextWriteSettings",
+                                        "quoteAllText": true,
+                                        "fileExtension": ".txt"
+                                    }
+                                },
+                                "enableStaging": false,
+                                "translator": {
+                                    "type": "TabularTranslator",
+                                    "typeConversion": true,
+                                    "typeConversionSettings": {
+                                        "allowDataTruncation": true,
+                                        "treatBooleanAsNumber": false
+                                    }
+                                }
+                            },
+                            "inputs": [
+                                {
+                                    "referenceName": "AZDS_SRC_GFSAP",
+                                    "type": "DatasetReference"
+                                }
+                            ],
+                            "outputs": [
+                                {
+                                    "referenceName": "AZDS_SRC_KIOSK",
+                                    "type": "DatasetReference",
+                                    "parameters": {
+                                        "container": {
+                                            "value": "@pipeline().parameters.KIOSK_Container",
+                                            "type": "Expression"
+                                        },
+                                        "tar_filename": {
+                                            "value": "@pipeline().parameters.pull_Status",
+                                            "type": "Expression"
+                                        },
+                                        "storageAccountNmae": {
+                                            "value": "@pipeline().parameters.KIOSK_storageAccount0094",
+                                            "type": "Expression"
+                                        },
+                                        "endpoint": {
+                                            "value": "@pipeline().parameters.KIOSK_endpoint",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "name": "Set variable LastPullStatus",
+                            "description": "initiate LastPullStatus = 0",
+                            "type": "SetVariable",
+                            "dependsOn": [],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "variableName": "LastPullStatus",
+                                "value": "0"
+                            }
+                        },
+                        {
+                            "name": "lkp HANA to initiate var CurrentDataStatus",
+                            "type": "Lookup",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "7.00:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "source": {
+                                    "type": "SapHanaSource",
+                                    "query": "Select p_value FROM \"FIG_DS_SCHEMA\".\"FIG.FINSIGHTS::CONTROL_TABLE\" WHERE P_NAME = 'Publish Load ID'",
+                                    "partitionOption": "None"
+                                },
+                                "dataset": {
+                                    "referenceName": "AZDS_SRC_GFSAP",
+                                    "type": "DatasetReference"
+                                }
+                            }
+                        },
+                        {
+                            "name": "Initiating var CurrentDataStatus",
+                            "description": "initiating var CurrentDataStatus",
+                            "type": "SetVariable",
+                            "dependsOn": [
+                                {
+                                    "activity": "lkp HANA to initiate var CurrentDataStatus",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "variableName": "CurrentDataStatus",
+                                "value": {
+                                    "value": "@activity('lkp HANA to initiate var CurrentDataStatus').output.firstRow.p_value",
+                                    "type": "Expression"
+                                }
+                            }
+                        }
+                    ],
+                    "ifTrueActivities": [
+                        {
+                            "name": "lkp HANA to check current data status",
+                            "type": "Lookup",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "7.00:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "source": {
+                                    "type": "SapHanaSource",
+                                    "query": "Select p_value FROM \"FIG_DS_SCHEMA\".\"FIG.FINSIGHTS::CONTROL_TABLE\" WHERE P_NAME = 'Publish Load ID'",
+                                    "partitionOption": "None"
+                                },
+                                "dataset": {
+                                    "referenceName": "AZDS_SRC_GFSAP",
+                                    "type": "DatasetReference"
+                                }
+                            }
+                        },
+                        {
+                            "name": "Current Hana Data status",
+                            "type": "SetVariable",
+                            "dependsOn": [
+                                {
+                                    "activity": "lkp HANA to check current data status",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "variableName": "CurrentDataStatus",
+                                "value": {
+                                    "value": "@activity('lkp HANA to check current data status').output.firstRow.p_value",
+                                    "type": "Expression"
+                                }
+                            }
+                        },
+                        {
+                            "name": "Last Data pull status",
+                            "type": "SetVariable",
+                            "dependsOn": [
+                                {
+                                    "activity": "Lookup last pull record",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "variableName": "LastPullStatus",
+                                "value": {
+                                    "value": "@activity('Lookup last pull record').output.firstRow.P_VALUE",
+                                    "type": "Expression"
+                                }
+                            }
+                        },
+                        {
+                            "name": "Lookup last pull record",
+                            "type": "Lookup",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "7.00:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "source": {
+                                    "type": "DelimitedTextSource",
+                                    "storeSettings": {
+                                        "type": "AzureBlobStorageReadSettings",
+                                        "recursive": true,
+                                        "enablePartitionDiscovery": false
+                                    },
+                                    "formatSettings": {
+                                        "type": "DelimitedTextReadSettings"
+                                    }
+                                },
+                                "dataset": {
+                                    "referenceName": "AZDS_SRC_KIOSK",
+                                    "type": "DatasetReference",
+                                    "parameters": {
+                                        "container": {
+                                            "value": "@pipeline().parameters.KIOSK_Container",
+                                            "type": "Expression"
+                                        },
+                                        "tar_filename": {
+                                            "value": "@pipeline().parameters.pull_Status",
+                                            "type": "Expression"
+                                        },
+                                        "storageAccountNmae": {
+                                            "value": "@pipeline().parameters.KIOSK_storageAccount0094",
+                                            "type": "Expression"
+                                        },
+                                        "endpoint": {
+                                            "value": "@pipeline().parameters.KIOSK_endpoint",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "name": "Get metadata of Pull status file",
+                "description": "1) look up the \"\"FIG_DS_SCHEMA\".\"FIG.FINSIGHTS::CONTROL_TABL \"\n2) get \"Publish Load ID \" value\n3) compare the value with the one saved in KIOSK-GF-GA-P_VALUE.txt\n4) if they are different, PULL DATA from HANA\n5) update KIOSK-GF-GA-P_VALUE.txt\nkeep the latest value that I just get from step1:FIG_DS_SCHEMA\".\"FIG.FINSIGHTS::CONTROL_TABL\n",
+                "type": "GetMetadata",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "dataset": {
+                        "referenceName": "AZDS_SRC_KIOSK",
+                        "type": "DatasetReference",
+                        "parameters": {
+                            "container": {
+                                "value": "@pipeline().parameters.KIOSK_Container",
+                                "type": "Expression"
+                            },
+                            "tar_filename": {
+                                "value": "@pipeline().parameters.pull_Status",
+                                "type": "Expression"
+                            },
+                            "storageAccountNmae": {
+                                "value": "@pipeline().parameters.KIOSK_storageAccount0094",
+                                "type": "Expression"
+                            },
+                            "endpoint": {
+                                "value": "@pipeline().parameters.KIOSK_endpoint",
+                                "type": "Expression"
+                            }
+                        }
+                    },
+                    "fieldList": [
+                        "exists"
+                    ],
+                    "storeSettings": {
+                        "type": "AzureBlobStorageReadSettings",
+                        "recursive": true,
+                        "enablePartitionDiscovery": false
+                    },
+                    "formatSettings": {
+                        "type": "DelimitedTextReadSettings"
+                    }
+                }
+            },
+            {
+                "name": "If Condition_ compare HANA data and lastPull record",
+                "description": "If Condition_ compare current HANA data and lastPull record\n\nif there are different, run copy activity\notherwise nothing",
+                "type": "IfCondition",
+                "dependsOn": [
+                    {
+                        "activity": "If Condition_valid_PullStatusFile exist or creat",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@equals(\nvariables('LastPullStatus'),\nvariables('CurrentDataStatus')\n)",
+                        "type": "Expression"
+                    },
+                    "ifFalseActivities": [
+                        {
+                            "name": "Execute child Pipeline to ingest HANA data",
+                            "description": "P_VALUE are different Hana and lastPull record so Hana data updated\nshould dump new data",
+                            "type": "ExecutePipeline",
+                            "dependsOn": [],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "pipeline": {
+                                    "referenceName": "AZPL_GF_GA_FIG_Extract_L1Child",
+                                    "type": "PipelineReference"
+                                },
+                                "waitOnCompletion": true,
+                                "parameters": {
+                                    "GA_Container": {
+                                        "value": "@pipeline().parameters.GA_Container",
+                                        "type": "Expression"
+                                    },
+                                    "retention_days": {
+                                        "value": "@pipeline().parameters.retention_days",
+                                        "type": "Expression"
+                                    },
+                                    "receiver": {
+                                        "value": "@pipeline().parameters.receiver",
+                                        "type": "Expression"
+                                    },
+                                    "cc": {
+                                        "value": "@pipeline().parameters.cc",
+                                        "type": "Expression"
+                                    },
+                                    "bcc": {
+                                        "value": "@pipeline().parameters.bcc",
+                                        "type": "Expression"
+                                    },
+                                    "KIOSK_archivesDirectory": {
+                                        "value": "@pipeline().parameters.KIOSK_archivesDirectory",
+                                        "type": "Expression"
+                                    },
+                                    "KIOSK_Filename": {
+                                        "value": "@pipeline().parameters.KIOSK_Filename",
+                                        "type": "Expression"
+                                    },
+                                    "KIOSK_Container": {
+                                        "value": "@pipeline().parameters.KIOSK_Container",
+                                        "type": "Expression"
+                                    },
+                                    "pull_Status": {
+                                        "value": "@pipeline().parameters.pull_Status",
+                                        "type": "Expression"
+                                    },
+                                    "KIOSK_endpoint": {
+                                        "value": "@pipeline().parameters.KIOSK_endpoint",
+                                        "type": "Expression"
+                                    },
+                                    "KIOSK_storageAccount0094": {
+                                        "value": "@pipeline().parameters.KIOSK_storageAccount0094",
+                                        "type": "Expression"
+                                    },
+                                    "GA_EMA_Endpoint": {
+                                        "value": "@pipeline().parameters.GA_EMA_Endpoint",
+                                        "type": "Expression"
+                                    },
+                                    "GA_AME_Endpoint": {
+                                        "value": "@pipeline().parameters.GA_AME_Endpoint",
+                                        "type": "Expression"
+                                    },
+                                    "GA_APA_Endpoint": {
+                                        "value": "@pipeline().parameters.GA_APA_Endpoint",
+                                        "type": "Expression"
+                                    },
+                                    "GA_filename": {
+                                        "value": "@pipeline().parameters.GA_filename",
+                                        "type": "Expression"
+                                    },
+                                    "GA_Endpoint_EMA_Enabled": {
+                                        "value": "@pipeline().parameters.GA_Endpoint_EMA_Enabled",
+                                        "type": "Expression"
+                                    },
+                                    "GA_Endpoint_AME_Enabled": {
+                                        "value": "@pipeline().parameters.GA_Endpoint_AME_Enabled",
+                                        "type": "Expression"
+                                    },
+                                    "GA_Endpoint_APA_Enabled": {
+                                        "value": "@pipeline().parameters.GA_Endpoint_APA_Enabled",
+                                        "type": "Expression"
+                                    },
+                                    "automation_endpoint": {
+                                        "value": "@pipeline().parameters.automation_endpoint",
+                                        "type": "Expression"
+                                    },
+                                    "Skip_Check_for_Publish_Load_ID": {
+                                        "value": "@pipeline().parameters.Skip_Check_for_Publish_Load_ID",
+                                        "type": "Expression"
+                                    },
+                                    "Disable_Data_Validation": {
+                                        "value": "@pipeline().parameters.Disable_Data_Validation",
+                                        "type": "Expression"
+                                    }
+                                }
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "name": "Update pull status file",
+                "description": "using current HANA value on \"FIG_DS_SCHEMA\".\"FIG.FINSIGHTS::CONTROL_TABL \"\n “P_NAME = 'Publish Load ID'\nupdate pull status file \"KIOSK-GF-GA-P_VALUE.txt\"",
+                "type": "Copy",
+                "dependsOn": [
+                    {
+                        "activity": "If Condition_ compare HANA data and lastPull record",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "source": {
+                        "type": "SapHanaSource",
+                        "query": {
+                            "value": "@{concat(\n'Select '\n, variables('CurrentDataStatus')\n,'    P_VALUE'\n,'  FROM  \"FIG_DS_SCHEMA\".\"FIG.FINSIGHTS::CONTROL_TABLE\"  WHERE  P_NAME = ''Publish Load ID'' '\n)}",
+                            "type": "Expression"
+                        },
+                        "partitionOption": "None"
+                    },
+                    "sink": {
+                        "type": "DelimitedTextSink",
+                        "storeSettings": {
+                            "type": "AzureBlobStorageWriteSettings"
+                        },
+                        "formatSettings": {
+                            "type": "DelimitedTextWriteSettings",
+                            "quoteAllText": true,
+                            "fileExtension": ".txt"
+                        }
+                    },
+                    "enableStaging": false,
+                    "translator": {
+                        "type": "TabularTranslator",
+                        "typeConversion": true,
+                        "typeConversionSettings": {
+                            "allowDataTruncation": true,
+                            "treatBooleanAsNumber": false
+                        }
+                    }
+                },
+                "inputs": [
+                    {
+                        "referenceName": "AZDS_SRC_GFSAP",
+                        "type": "DatasetReference"
+                    }
+                ],
+                "outputs": [
+                    {
+                        "referenceName": "AZDS_SRC_KIOSK",
+                        "type": "DatasetReference",
+                        "parameters": {
+                            "container": {
+                                "value": "@pipeline().parameters.KIOSK_Container",
+                                "type": "Expression"
+                            },
+                            "tar_filename": {
+                                "value": "@pipeline().parameters.pull_Status",
+                                "type": "Expression"
+                            },
+                            "storageAccountNmae": {
+                                "value": "@pipeline().parameters.KIOSK_storageAccount0094",
+                                "type": "Expression"
+                            },
+                            "endpoint": {
+                                "value": "@pipeline().parameters.KIOSK_endpoint",
+                                "type": "Expression"
+                            }
+                        }
+                    }
+                ]
+            }
+        ],
+        "parameters": {
+            "GA_Container": {
+                "type": "string",
+                "defaultValue": "figdata"
+            },
+            "retention_days": {
+                "type": "int",
+                "defaultValue": 365
+            },
+            "receiver": {
+                "type": "string",
+                "defaultValue": "ajohnchuan@deloitte.ca"
+            },
+            "cc": {
+                "type": "string",
+                "defaultValue": "ajbrar@deloitte.ca"
+            },
+            "bcc": {
+                "type": "string",
+                "defaultValue": "erjchen@deloitte.ca"
+            },
+            "KIOSK_archivesDirectory": {
+                "type": "string",
+                "defaultValue": "archive"
+            },
+            "KIOSK_Filename": {
+                "type": "string",
+                "defaultValue": "KIOSK-GF-GA-FIG_Extract"
+            },
+            "KIOSK_Container": {
+                "type": "string",
+                "defaultValue": "global-audit"
+            },
+            "pull_Status": {
+                "type": "string",
+                "defaultValue": "KIOSK-GF-GA-P_VALUE.txt"
+            },
+            "KIOSK_endpoint": {
+                "type": "string",
+                "defaultValue": "https://app0094sqldev.blob.core.windows.net"
+            },
+            "KIOSK_storageAccount0094": {
+                "type": "string",
+                "defaultValue": "app0094sqldev"
+            },
+            "GA_EMA_Endpoint": {
+                "type": "string",
+                "defaultValue": "https://derfigsaema.blob.core.windows.net"
+            },
+            "GA_AME_Endpoint": {
+                "type": "string",
+                "defaultValue": "https://derfigsaame.blob.core.windows.net"
+            },
+            "GA_APA_Endpoint": {
+                "type": "string",
+                "defaultValue": "https://derfigsaapa.blob.core.windows.net"
+            },
+            "GA_filename": {
+                "type": "string",
+                "defaultValue": "FIGExtract"
+            },
+            "GA_Endpoint_EMA_Enabled": {
+                "type": "string",
+                "defaultValue": "y"
+            },
+            "GA_Endpoint_AME_Enabled": {
+                "type": "string",
+                "defaultValue": "y"
+            },
+            "GA_Endpoint_APA_Enabled": {
+                "type": "string",
+                "defaultValue": "y"
+            },
+            "automation_endpoint": {
+                "type": "string",
+                "defaultValue": "https://ffe89918-a835-4f0c-9a68-6043d8b27017.webhook.we.azure-automation.net/webhooks?token=%2b9KMc34uibgt4JB5ENLxRW22aPqvJBzz9XdY1xuhlYA%3d"
+            },
+            "Skip_Check_for_Publish_Load_ID": {
+                "type": "string",
+                "defaultValue": "y"
+            },
+            "Disable_Data_Validation": {
+                "type": "string",
+                "defaultValue": "y"
+            }
+        },
+        "variables": {
+            "retention_days_nanosecond": {
+                "type": "String"
+            },
+            "var_today": {
+                "type": "String"
+            },
+            "var_item_monitor": {
+                "type": "String"
+            },
+            "LastPullStatus": {
+                "type": "String"
+            },
+            "CurrentDataStatus": {
+                "type": "String"
+            }
+        },
+        "folder": {
+            "name": "Extended_Reporting"
+        },
+        "annotations": []
+    }
+}

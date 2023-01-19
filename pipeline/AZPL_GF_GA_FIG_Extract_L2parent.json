@@ -1,0 +1,330 @@
+{
+    "name": "AZPL_GF_GA_FIG_Extract_L2parent",
+    "properties": {
+        "description": "In short:\n1) First delivery:\n  >file name:  KIOSK-GF-GA-FIG_Extract.csv.gz\n  >save to: app2145sqldev; \nunder sub-directory, named YYYYMMDD\n  >Format: csv\n  >Compress: GZip\n=========================\n2) Second delivery:\n >file name:  KIOSK-GF-GA-FIG_Extract.csv\n>save to: app0094sqldev\n at root directory\n>Format: csv, \n>Compress: No \n=========================\n3) Third Delivery:\n >file name:  KIOSK-GF-GA-FIG_Extract-YYYYMMDD-HHMM.csv\n>save to: app0094sqldev\n at sub-directory archive\n>Format: csv, \n>Compress: No \n=========================\nfor memory: \n#1105604 -> Destination & FileName\n#1123260 -> linked services\n#1080216 -> file Type & FileName\n#1080214 -> schema\n",
+        "activities": [
+            {
+                "name": "If Condition whether force dumping or not",
+                "description": "check whether force dumping or not",
+                "type": "IfCondition",
+                "dependsOn": [],
+                "userProperties": [],
+                "typeProperties": {
+                    "expression": {
+                        "value": "@or(\nequals(pipeline().parameters.Skip_Check_for_Publish_Load_ID, 'y'), \nequals(pipeline().parameters.Skip_Check_for_Publish_Load_ID, 'yes')\n)",
+                        "type": "Expression"
+                    },
+                    "ifFalseActivities": [
+                        {
+                            "name": "Execute check p_value",
+                            "type": "ExecutePipeline",
+                            "dependsOn": [],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "pipeline": {
+                                    "referenceName": "AZPL_GF_GA_FIG_Extract_L2child",
+                                    "type": "PipelineReference"
+                                },
+                                "waitOnCompletion": true,
+                                "parameters": {
+                                    "GA_Container": {
+                                        "value": "@pipeline().parameters.GA_Container",
+                                        "type": "Expression"
+                                    },
+                                    "retention_days": {
+                                        "value": "@pipeline().parameters.retention_days",
+                                        "type": "Expression"
+                                    },
+                                    "receiver": {
+                                        "value": "@pipeline().parameters.receiver",
+                                        "type": "Expression"
+                                    },
+                                    "cc": {
+                                        "value": "@pipeline().parameters.cc",
+                                        "type": "Expression"
+                                    },
+                                    "bcc": {
+                                        "value": "@pipeline().parameters.bcc",
+                                        "type": "Expression"
+                                    },
+                                    "KIOSK_archivesDirectory": {
+                                        "value": "@pipeline().parameters.KIOSK_archivesDirectory",
+                                        "type": "Expression"
+                                    },
+                                    "KIOSK_Filename": {
+                                        "value": "@pipeline().parameters.KIOSK_Filename",
+                                        "type": "Expression"
+                                    },
+                                    "KIOSK_Container": {
+                                        "value": "@pipeline().parameters.KIOSK_Container",
+                                        "type": "Expression"
+                                    },
+                                    "pull_Status": {
+                                        "value": "@pipeline().parameters.pull_Status",
+                                        "type": "Expression"
+                                    },
+                                    "KIOSK_endpoint": {
+                                        "value": "@pipeline().parameters.KIOSK_endpoint",
+                                        "type": "Expression"
+                                    },
+                                    "KIOSK_storageAccount0094": {
+                                        "value": "@pipeline().parameters.KIOSK_storageAccount0094",
+                                        "type": "Expression"
+                                    },
+                                    "GA_EMA_Endpoint": {
+                                        "value": "@pipeline().parameters.GA_EMA_Endpoint",
+                                        "type": "Expression"
+                                    },
+                                    "GA_AME_Endpoint": {
+                                        "value": "@pipeline().parameters.GA_AME_Endpoint",
+                                        "type": "Expression"
+                                    },
+                                    "GA_APA_Endpoint": {
+                                        "value": "@pipeline().parameters.GA_APA_Endpoint",
+                                        "type": "Expression"
+                                    },
+                                    "GA_filename": {
+                                        "value": "@pipeline().parameters.GA_filename",
+                                        "type": "Expression"
+                                    },
+                                    "GA_Endpoint_EMA_Enabled": {
+                                        "value": "@pipeline().parameters.GA_Endpoint_EMA_Enabled",
+                                        "type": "Expression"
+                                    },
+                                    "GA_Endpoint_AME_Enabled": {
+                                        "value": "@pipeline().parameters.GA_Endpoint_AME_Enabled",
+                                        "type": "Expression"
+                                    },
+                                    "GA_Endpoint_APA_Enabled": {
+                                        "value": "@pipeline().parameters.GA_Endpoint_APA_Enabled",
+                                        "type": "Expression"
+                                    },
+                                    "automation_endpoint": {
+                                        "value": "@pipeline().parameters.automation_endpoint",
+                                        "type": "Expression"
+                                    },
+                                    "Skip_Check_for_Publish_Load_ID": {
+                                        "value": "@pipeline().parameters.Skip_Check_for_Publish_Load_ID",
+                                        "type": "Expression"
+                                    },
+                                    "Disable_Data_Validation": {
+                                        "value": "@pipeline().parameters.Disable_Data_Validation",
+                                        "type": "Expression"
+                                    }
+                                }
+                            }
+                        }
+                    ],
+                    "ifTrueActivities": [
+                        {
+                            "name": "Force HANA dumping",
+                            "type": "ExecutePipeline",
+                            "dependsOn": [],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "pipeline": {
+                                    "referenceName": "AZPL_GF_GA_FIG_Extract_L1Child",
+                                    "type": "PipelineReference"
+                                },
+                                "waitOnCompletion": true,
+                                "parameters": {
+                                    "GA_Container": {
+                                        "value": "@pipeline().parameters.GA_Container",
+                                        "type": "Expression"
+                                    },
+                                    "retention_days": {
+                                        "value": "@pipeline().parameters.retention_days",
+                                        "type": "Expression"
+                                    },
+                                    "receiver": {
+                                        "value": "@pipeline().parameters.receiver",
+                                        "type": "Expression"
+                                    },
+                                    "cc": {
+                                        "value": "@pipeline().parameters.cc",
+                                        "type": "Expression"
+                                    },
+                                    "bcc": {
+                                        "value": "@pipeline().parameters.bcc",
+                                        "type": "Expression"
+                                    },
+                                    "KIOSK_archivesDirectory": {
+                                        "value": "@pipeline().parameters.KIOSK_archivesDirectory",
+                                        "type": "Expression"
+                                    },
+                                    "KIOSK_Filename": {
+                                        "value": "@pipeline().parameters.KIOSK_Filename",
+                                        "type": "Expression"
+                                    },
+                                    "KIOSK_Container": {
+                                        "value": "@pipeline().parameters.KIOSK_Container",
+                                        "type": "Expression"
+                                    },
+                                    "pull_Status": {
+                                        "value": "@pipeline().parameters.pull_Status",
+                                        "type": "Expression"
+                                    },
+                                    "KIOSK_endpoint": {
+                                        "value": "@pipeline().parameters.KIOSK_endpoint",
+                                        "type": "Expression"
+                                    },
+                                    "KIOSK_storageAccount0094": {
+                                        "value": "@pipeline().parameters.KIOSK_storageAccount0094",
+                                        "type": "Expression"
+                                    },
+                                    "GA_EMA_Endpoint": {
+                                        "value": "@pipeline().parameters.GA_EMA_Endpoint",
+                                        "type": "Expression"
+                                    },
+                                    "GA_AME_Endpoint": {
+                                        "value": "@pipeline().parameters.GA_AME_Endpoint",
+                                        "type": "Expression"
+                                    },
+                                    "GA_APA_Endpoint": {
+                                        "value": "@pipeline().parameters.GA_APA_Endpoint",
+                                        "type": "Expression"
+                                    },
+                                    "GA_filename": {
+                                        "value": "@pipeline().parameters.GA_filename",
+                                        "type": "Expression"
+                                    },
+                                    "GA_Endpoint_EMA_Enabled": {
+                                        "value": "@pipeline().parameters.GA_Endpoint_EMA_Enabled",
+                                        "type": "Expression"
+                                    },
+                                    "GA_Endpoint_AME_Enabled": {
+                                        "value": "@pipeline().parameters.GA_Endpoint_AME_Enabled",
+                                        "type": "Expression"
+                                    },
+                                    "GA_Endpoint_APA_Enabled": {
+                                        "value": "@pipeline().parameters.GA_Endpoint_APA_Enabled",
+                                        "type": "Expression"
+                                    },
+                                    "automation_endpoint": {
+                                        "value": "@pipeline().parameters.automation_endpoint",
+                                        "type": "Expression"
+                                    },
+                                    "Skip_Check_for_Publish_Load_ID": {
+                                        "value": "@pipeline().parameters.Skip_Check_for_Publish_Load_ID",
+                                        "type": "Expression"
+                                    },
+                                    "Disable_Data_Validation": {
+                                        "value": "@pipeline().parameters.Disable_Data_Validation",
+                                        "type": "Expression"
+                                    }
+                                }
+                            }
+                        }
+                    ]
+                }
+            }
+        ],
+        "parameters": {
+            "GA_Container": {
+                "type": "string",
+                "defaultValue": "figdata"
+            },
+            "retention_days": {
+                "type": "int",
+                "defaultValue": 365
+            },
+            "receiver": {
+                "type": "string",
+                "defaultValue": "ajohnchuan@deloitte.ca"
+            },
+            "cc": {
+                "type": "string",
+                "defaultValue": "ajbrar@deloitte.ca"
+            },
+            "bcc": {
+                "type": "string",
+                "defaultValue": "erjchen@deloitte.ca"
+            },
+            "KIOSK_archivesDirectory": {
+                "type": "string",
+                "defaultValue": "archive"
+            },
+            "KIOSK_Filename": {
+                "type": "string",
+                "defaultValue": "KIOSK-GF-GA-FIG_Extract"
+            },
+            "KIOSK_Container": {
+                "type": "string",
+                "defaultValue": "global-audit"
+            },
+            "pull_Status": {
+                "type": "string",
+                "defaultValue": "KIOSK-GF-GA-P_VALUE.txt"
+            },
+            "KIOSK_endpoint": {
+                "type": "string",
+                "defaultValue": "https://app0094sqldev.blob.core.windows.net"
+            },
+            "KIOSK_storageAccount0094": {
+                "type": "string",
+                "defaultValue": "app0094sqldev"
+            },
+            "GA_EMA_Endpoint": {
+                "type": "string",
+                "defaultValue": "https://app2145sqldev.blob.core.windows.net/"
+            },
+            "GA_AME_Endpoint": {
+                "type": "string",
+                "defaultValue": "https://app2145sqldev.blob.core.windows.net/"
+            },
+            "GA_APA_Endpoint": {
+                "type": "string",
+                "defaultValue": "https://app2145sqldev.blob.core.windows.net/"
+            },
+            "GA_filename": {
+                "type": "string",
+                "defaultValue": "FIGExtract"
+            },
+            "GA_Endpoint_EMA_Enabled": {
+                "type": "string",
+                "defaultValue": "y"
+            },
+            "GA_Endpoint_AME_Enabled": {
+                "type": "string",
+                "defaultValue": "n"
+            },
+            "GA_Endpoint_APA_Enabled": {
+                "type": "string",
+                "defaultValue": "n"
+            },
+            "automation_endpoint": {
+                "type": "string",
+                "defaultValue": "https://ffe89918-a835-4f0c-9a68-6043d8b27017.webhook.we.azure-automation.net/webhooks?token=%2b9KMc34uibgt4JB5ENLxRW22aPqvJBzz9XdY1xuhlYA%3d"
+            },
+            "Skip_Check_for_Publish_Load_ID": {
+                "type": "string",
+                "defaultValue": "n"
+            },
+            "Disable_Data_Validation": {
+                "type": "string",
+                "defaultValue": "n"
+            }
+        },
+        "variables": {
+            "retention_days_nanosecond": {
+                "type": "String"
+            },
+            "var_today": {
+                "type": "String"
+            },
+            "var_item_monitor": {
+                "type": "String"
+            },
+            "LastPullStatus": {
+                "type": "String"
+            },
+            "CurrentDataStatus": {
+                "type": "String"
+            }
+        },
+        "folder": {
+            "name": "Extended_Reporting"
+        },
+        "annotations": []
+    }
+}
